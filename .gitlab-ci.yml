@@ -37,32 +37,35 @@ core-test-linux:
   script:
     - cargo test -p board-core
 
+.windows:
+  tags: [saas-windows-medium-amd64]
+  cache:
+    key: cargo-windows
+    paths: [.cargo/registry, .cargo/git, target]
+  before_script:
+    - if (-not (Test-Path "$env:CARGO_HOME\bin\cargo.exe")) { Invoke-WebRequest https://win.rustup.rs/x86_64 -OutFile rustup-init.exe; .\rustup-init.exe -y --profile minimal --no-modify-path }
+    - $env:Path = "$env:CARGO_HOME\bin;$env:Path"
+    - cargo --version
+
 # Real ConPTY coverage — the target platform.
 core-test-windows:
+  extends: .windows
   stage: test
-  tags: [saas-windows-medium-amd64]
   script:
-    - Invoke-WebRequest https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
-    - .\rustup-init.exe -y --profile minimal
-    - $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
     - cargo test -p board-core
+    - if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 windows-installer:
+  extends: .windows
   stage: build
-  tags: [saas-windows-medium-amd64]
-  rules:
-    - if: $CI_COMMIT_TAG
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    - when: manual
-      allow_failure: true
+  needs: [frontend, core-test-windows]
   script:
-    - Invoke-WebRequest https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
-    - .\rustup-init.exe -y --profile minimal
-    - $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
-    - choco install nodejs-lts -y --no-progress
-    - $env:Path = "C:\Program Files\nodejs;$env:Path"
+    - if (-not (Get-Command node -ErrorAction SilentlyContinue)) { choco install nodejs-lts -y --no-progress; $env:Path = "C:\Program Files\nodejs;$env:Path" }
+    - node --version
     - npm ci
+    - if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     - npx tauri build
+    - if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   artifacts:
     expire_in: 30 days
     paths:
