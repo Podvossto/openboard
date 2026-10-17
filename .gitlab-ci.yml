@@ -65,12 +65,7 @@ windows-installer:
     - node --version; npm --version
     - npm ci
     - if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    # npm/cli#4828: lockfile made on Linux may skip win32 native optional deps — install them
-    # explicitly at the exact locked versions.
-    - $lock = Get-Content package-lock.json -Raw | ConvertFrom-Json
-    - $pkgs = $lock.packages.PSObject.Properties | Where-Object { $_.Name -like '*win32-x64-msvc' } | ForEach-Object { ($_.Name -replace '^node_modules/', '') + '@' + $_.Value.version }
-    - Write-Host "native deps: $pkgs"
-    - npm install --no-save $pkgs
+    - ./scripts/ci-win-native-deps.ps1
     - if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     - npx tauri build
     - if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
