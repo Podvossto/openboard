@@ -19,7 +19,7 @@ done
 echo "pipeline $P ($SHA) => ${ST:-none}"
 api "pipelines/$P/jobs?per_page=50" | python3 -c '
 import json,sys
-for j in json.load(sys.stdin): print(f"{j[\"id\"]} {j[\"name\"]} = {j[\"status\"]} {j.get(\"failure_reason\") or \"\"}")' | tee /tmp/ab-jobs.txt
+for j in json.load(sys.stdin): print(j["id"], j["name"], "=", j["status"], j.get("failure_reason") or "")' | tee /tmp/ab-jobs.txt
 for J in $(awk '$4=="failed"{print $1}' /tmp/ab-jobs.txt); do
   echo "===== log tail $J"; api "jobs/$J/trace" | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' | grep -vE '^\s*$' | tail -60
 done

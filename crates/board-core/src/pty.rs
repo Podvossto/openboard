@@ -3,6 +3,7 @@
 //! Each session owns: the master (resize), a writer (input), a reader thread
 //! (output → [`PtyEvents::output`] + scrollback + status) and a waiter thread (exit).
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -10,13 +11,24 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use parking_lot::Mutex;
-use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
+use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, MasterPty, PtySize};
 
 use crate::scrollback::Scrollback;
 use crate::status::{HookEvent, Status, StatusTracker, Tuning};
 use crate::{Error, Result};
 
 const SCROLLBACK_BYTES: usize = 512 * 1024;
+const DSR: &[u8] = b"\x1b[6n";
+const CURSOR_REPLY: &[u8] = b"\x1b[1;1R";
+
+/// Remove the first cursor-position query from `chunk`, if present.
+fn strip_dsr(chunk: &[u8]) -> Option<Vec<u8>> {
+    let at = chunk.windows(DSR.len()).position(|w| w == DSR)?;
+    let mut out = Vec::with_capacity(chunk.len() - DSR.len());
+    out.extend_from_slice(&chunk[..at]);
+    out.extend_from_slice(&chunk[at + DSR.len()..]);
+    Some(out)
+}
 
 /// Sink for session events — implemented by the Tauri layer (emits to the webview).
 pub trait PtyEvents: Send + Sync + 'static {
@@ -39,7 +51,7 @@ pub struct SpawnRequest {
 struct Session {
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
-    child: Box<dyn Child + Send + Sync>,
+    killer: Box<dyn ChildKiller + Send + Sync>,
     tracker: Arc<Mutex<StatusTracker>>,
     scrollback: Arc<Mutex<Scrollback>>,
 }
@@ -87,8 +99,8 @@ impl<E: PtyEvents> PtyManager<E> {
         }
         let pair = native_pty_system()
             .openpty(PtySize {
-                rows: req.rows,
-                cols: req.cols,
+                rows: req.rows.max(1),
+                cols: req.cols.max(1),
                 pixel_width: 0,
                 pixel_height: 0,
             })
@@ -101,11 +113,11 @@ impl<E: PtyEvents> PtyManager<E> {
         for (k, v) in &req.env {
             cmd.env(k, v);
         }
-        let child = pair
+        let mut child = pair
             .slave
             .spawn_command(cmd)
             .map_err(|e| Error::Pty(e.to_string()))?;
-        drop(pair.slave); // so reader sees EOF when the child exits
+        drop(pair.slave); // Unix: reader sees EOF once the child exits
         let reader = pair
             .master
             .try_clone_reader()
@@ -117,20 +129,36 @@ impl<E: PtyEvents> PtyManager<E> {
 
         let tracker = Arc::new(Mutex::new(StatusTracker::new(req.hooks, Tuning::default())));
         let scrollback = Arc::new(Mutex::new(Scrollback::new(SCROLLBACK_BYTES)));
-        let mut killer = child.clone_killer();
+        let killer = child.clone_killer();
         let pid = child.process_id();
         self.sessions.lock().insert(
             req.id.clone(),
             Session {
                 master: pair.master,
                 writer,
-                child,
+                killer,
                 tracker: tracker.clone(),
                 scrollback: scrollback.clone(),
             },
         );
         tracing::info!(id = %req.id, ?pid, program = %req.program.display(), "pty spawned");
 
+        // Waiter: owns the child. On exit it removes the session and drops the master —
+        // on Windows that closes the ConPTY, which is what unblocks the reader (ConPTY
+        // never delivers EOF on its own while the pseudo console is open).
+        let (code_tx, code_rx) = std::sync::mpsc::channel::<Option<u32>>();
+        let me = Arc::clone(self);
+        let id = req.id.clone();
+        std::thread::Builder::new()
+            .name(format!("pty-wait-{id}"))
+            .spawn(move || {
+                let code = child.wait().ok().map(|st| st.exit_code());
+                let session = me.sessions.lock().remove(&id);
+                drop(session); // outside the map lock: ClosePseudoConsole may block briefly
+                let _ = code_tx.send(code);
+            })?;
+
+        // Reader: streams output until EOF, then reports the exit.
         let me = Arc::clone(self);
         let id = req.id.clone();
         std::thread::Builder::new()
@@ -138,11 +166,28 @@ impl<E: PtyEvents> PtyManager<E> {
             .spawn(move || {
                 let mut reader = reader;
                 let mut buf = [0u8; 16 * 1024];
+                let mut startup_dsr_pending = true;
                 loop {
                     match reader.read(&mut buf) {
                         Ok(0) | Err(_) => break,
                         Ok(n) => {
-                            let chunk = &buf[..n];
+                            let mut chunk = Cow::Borrowed(&buf[..n]);
+                            if startup_dsr_pending {
+                                // ConPTY (created with INHERIT_CURSOR) asks for the cursor
+                                // position and renders nothing until answered. Answer it here
+                                // and strip it, so scrollback replays never re-trigger replies.
+                                if let Some(stripped) = strip_dsr(&chunk) {
+                                    startup_dsr_pending = false;
+                                    let _ = me.write_raw(&id, CURSOR_REPLY);
+                                    chunk = Cow::Owned(stripped);
+                                } else if !cfg!(windows) {
+                                    startup_dsr_pending = false;
+                                }
+                            }
+                            let chunk: &[u8] = &chunk;
+                            if chunk.is_empty() {
+                                continue;
+                            }
                             {
                                 // Push + emit under one lock so `attach` never drops or
                                 // duplicates bytes between its snapshot and live stream.
@@ -156,25 +201,16 @@ impl<E: PtyEvents> PtyManager<E> {
                         }
                     }
                 }
-                me.reap(&id);
-            })
-            .map_err(Error::Io)
-            .inspect_err(|_| {
-                let _ = killer.kill();
+                let code = code_rx.recv_timeout(Duration::from_secs(10)).ok().flatten();
+                // Unix can hit EOF before the waiter removed the session.
+                let session = me.sessions.lock().remove(&id);
+                drop(session);
+                tracker.lock().on_exit();
+                me.events.status(&id, Status::Exited);
+                me.events.exited(&id, code);
+                tracing::info!(%id, ?code, "pty exited");
             })?;
         Ok(())
-    }
-
-    /// Called when output hits EOF: collect exit code and drop the session.
-    fn reap(&self, id: &str) {
-        let Some(mut s) = self.sessions.lock().remove(id) else {
-            return;
-        };
-        let code = s.child.wait().ok().map(|st| st.exit_code());
-        s.tracker.lock().on_exit();
-        self.events.status(id, Status::Exited);
-        self.events.exited(id, code);
-        tracing::info!(%id, ?code, "pty exited");
     }
 
     pub fn write(&self, id: &str, data: &[u8]) -> Result<()> {
@@ -187,6 +223,17 @@ impl<E: PtyEvents> PtyManager<E> {
         if let Some(st) = s.tracker.lock().on_input(Instant::now()) {
             self.events.status(id, st);
         }
+        Ok(())
+    }
+
+    /// Write without counting as user input (protocol replies).
+    fn write_raw(&self, id: &str, data: &[u8]) -> Result<()> {
+        let mut map = self.sessions.lock();
+        let s = map
+            .get_mut(id)
+            .ok_or_else(|| Error::ConsoleNotFound(id.into()))?;
+        s.writer.write_all(data)?;
+        s.writer.flush()?;
         Ok(())
     }
 
@@ -220,13 +267,13 @@ impl<E: PtyEvents> PtyManager<E> {
         let s = map
             .get_mut(id)
             .ok_or_else(|| Error::ConsoleNotFound(id.into()))?;
-        s.child.kill()?;
+        s.killer.kill()?;
         Ok(())
     }
 
     pub fn kill_all(&self) {
         for s in self.sessions.lock().values_mut() {
-            let _ = s.child.kill();
+            let _ = s.killer.kill();
         }
     }
 
@@ -254,5 +301,17 @@ impl<E: PtyEvents> PtyManager<E> {
 
     pub fn is_running(&self, id: &str) -> bool {
         self.sessions.lock().contains_key(id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strips_first_dsr_only() {
+        assert_eq!(strip_dsr(b"a\x1b[6nb\x1b[6n").unwrap(), b"ab\x1b[6n");
+        assert_eq!(strip_dsr(b"\x1b[6n").unwrap(), b"");
+        assert!(strip_dsr(b"plain").is_none());
     }
 }

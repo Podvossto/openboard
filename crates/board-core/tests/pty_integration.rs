@@ -97,6 +97,30 @@ fn echo_roundtrip_and_exit() {
 }
 
 #[test]
+fn kill_reports_exit_and_frees_session() {
+    let rec = Arc::new(Rec::default());
+    let m = PtyManager::new(rec.clone());
+    let (program, args) = shell();
+    m.spawn(SpawnRequest {
+        id: "k1".into(),
+        program,
+        args,
+        cwd: std::env::temp_dir(),
+        env: vec![],
+        cols: 80,
+        rows: 24,
+        hooks: false,
+    })
+    .unwrap();
+    m.kill("k1").unwrap();
+    assert!(
+        wait_until(|| rec.exit.lock().is_some()),
+        "no exit after kill"
+    );
+    assert!(!m.is_running("k1"));
+}
+
+#[test]
 fn unknown_console_errors() {
     let m = PtyManager::new(Arc::new(Rec::default()));
     assert!(m.write("nope", b"x").is_err());
