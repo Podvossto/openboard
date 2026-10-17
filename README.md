@@ -50,5 +50,19 @@ cargo test -p board-core   # core + real PTY integration tests
 npm run tauri build        # NSIS + MSI installers in target/release/bundle/
 ```
 
+Headless UI smoke test (any OS, no Tauri needed — IPC is mocked):
+```bash
+npx vite --mode mock --port 1421 &
+python scripts/ui-smoke.py          # requires playwright
+```
+
+## Known platform notes
+- ConPTY asks for the cursor position (`ESC[6n`) at startup and renders nothing until answered —
+  `board-core` answers the first query itself.
+- On Windows the PTY reader only unblocks when the pseudo console is closed, so a dedicated
+  waiter thread owns the child, closes the PTY on exit, then the reader reports the exit code.
+- npm-installed CLIs are `.cmd` shims; they are launched through `cmd.exe /d /c`.
+- portable-pty 0.9's Windows `kill()` reports an error on success; we ignore it and rely on the waiter.
+
 ## Status
 MVP phase 1 — see `SOT.md`. Scope in `PROJECT.md`.
