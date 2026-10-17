@@ -267,7 +267,16 @@ impl<E: PtyEvents> PtyManager<E> {
         let s = map
             .get_mut(id)
             .ok_or_else(|| Error::ConsoleNotFound(id.into()))?;
-        s.killer.kill()?;
+        let res = s.killer.kill();
+        // portable-pty 0.9 `WinChildKiller::kill` inverts TerminateProcess's result and
+        // reports Err on success. Exit is confirmed by the waiter thread instead.
+        if cfg!(windows) {
+            if let Err(e) = res {
+                tracing::debug!(%id, %e, "ignoring Windows kill result (upstream bug)");
+            }
+            return Ok(());
+        }
+        res?;
         Ok(())
     }
 

@@ -71,6 +71,25 @@ pub fn resolve(program: &str) -> Result<PathBuf> {
     which::which(program).map_err(|_| Error::ProgramNotFound(program.into()))
 }
 
+/// Windows can't `CreateProcess` a batch file (npm installs `claude.cmd`, `codex.cmd`):
+/// run it through `cmd.exe /d /c`. No-op for real executables and on other OSes.
+pub fn wrap_batch(program: PathBuf, args: Vec<String>, comspec: &str) -> (PathBuf, Vec<String>) {
+    let is_batch = program
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("cmd") || e.eq_ignore_ascii_case("bat"));
+    if !is_batch {
+        return (program, args);
+    }
+    let mut wrapped = vec![
+        "/d".to_string(),
+        "/c".to_string(),
+        program.display().to_string(),
+    ];
+    wrapped.extend(args);
+    (PathBuf::from(comspec), wrapped)
+}
+
 /// Default interactive shell for "Custom" consoles.
 pub fn default_shell() -> String {
     if cfg!(windows) {
@@ -135,6 +154,20 @@ mod tests {
                 args: vec!["--yes".into()]
             }
         );
+    }
+
+    #[test]
+    fn wraps_npm_batch_shims_only() {
+        let (p, a) = wrap_batch(
+            PathBuf::from(r"C:\npm\claude.CMD"),
+            vec!["--resume".into(), "x".into()],
+            r"C:\Windows\System32\cmd.exe",
+        );
+        assert_eq!(p, PathBuf::from(r"C:\Windows\System32\cmd.exe"));
+        assert_eq!(a, ["/d", "/c", r"C:\npm\claude.CMD", "--resume", "x"]);
+        let (p, a) = wrap_batch(PathBuf::from("/usr/bin/claude"), vec!["-c".into()], "cmd");
+        assert_eq!(p, PathBuf::from("/usr/bin/claude"));
+        assert_eq!(a, ["-c"]);
     }
 
     #[test]

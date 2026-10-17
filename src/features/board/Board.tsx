@@ -1,17 +1,18 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
+  applyNodeChanges,
   Background,
   BackgroundVariant,
   Controls,
   MiniMap,
   ReactFlow,
-  type Node,
   type NodeChange,
   type Viewport,
 } from "@xyflow/react";
-import { ConsoleNodeView, type ConsoleFlowNode } from "../console/ConsoleNodeView";
+import { ConsoleNodeView } from "../console/ConsoleNodeView";
 import { useBoard } from "../../store/board";
 import { STATUS_COLOR } from "../console/statusStyle";
+import { persistableChanges, reconcile, type ConsoleFlowNode } from "./nodes";
 
 const nodeTypes = { console: ConsoleNodeView };
 
@@ -19,40 +20,15 @@ export function Board() {
   const consoles = useBoard((s) => s.workspace.consoles);
   const viewport = useBoard((s) => s.workspace.viewport);
   const runtime = useBoard((s) => s.runtime);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [nodes, setNodes] = useState<ConsoleFlowNode[]>(() => reconcile(consoles, []));
 
-  const nodes: ConsoleFlowNode[] = useMemo(
-    () =>
-      consoles.map((c) => ({
-        id: c.id,
-        type: "console",
-        position: { x: c.x, y: c.y },
-        width: c.width,
-        height: c.height,
-        dragHandle: ".console-header",
-        selected: c.id === selected,
-        data: { console: c },
-      })),
-    [consoles, selected],
-  );
+  // Store → nodes (add/remove/rename/persisted moves).
+  useEffect(() => setNodes((prev) => reconcile(consoles, prev)), [consoles]);
 
-  const onNodesChange = useCallback((changes: NodeChange<Node>[]) => {
+  const onNodesChange = useCallback((changes: NodeChange<ConsoleFlowNode>[]) => {
+    setNodes((nds) => applyNodeChanges(changes, nds));
     const { patchConsole } = useBoard.getState();
-    for (const ch of changes) {
-      if (ch.type === "select") {
-        setSelected((cur) => (ch.selected ? ch.id : cur === ch.id ? null : cur));
-      } else if (ch.type === "position" && ch.position && !ch.dragging) {
-        patchConsole(ch.id, { x: Math.round(ch.position.x), y: Math.round(ch.position.y) });
-      } else if (ch.type === "position" && ch.position) {
-        // live drag: update without waiting for drop so the node follows the cursor
-        patchConsole(ch.id, { x: ch.position.x, y: ch.position.y });
-      } else if (ch.type === "dimensions" && ch.dimensions && ch.resizing !== undefined) {
-        patchConsole(ch.id, {
-          width: Math.round(ch.dimensions.width),
-          height: Math.round(ch.dimensions.height),
-        });
-      }
-    }
+    for (const { id, patch } of persistableChanges(changes)) patchConsole(id, patch);
   }, []);
 
   const onMoveEnd = useCallback((_: unknown, v: Viewport) => {
@@ -72,6 +48,7 @@ export function Board() {
       zoomOnScroll={false}
       zoomActivationKeyCode="Control"
       deleteKeyCode={null}
+      selectionOnDrag={false}
       proOptions={{ hideAttribution: true }}
       colorMode="dark"
     >
@@ -80,7 +57,7 @@ export function Board() {
       <MiniMap
         pannable
         zoomable
-        nodeColor={(n) => STATUS_COLOR[runtime[n.id]?.status ?? "exited"]}
+        nodeColor={(n) => STATUS_COLOR[runtime[n.id]?.running ? (runtime[n.id]?.status ?? "exited") : "exited"]}
       />
     </ReactFlow>
   );

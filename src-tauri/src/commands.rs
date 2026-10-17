@@ -80,12 +80,13 @@ pub fn spawn_console(state: State<'_, AppState>, args: SpawnArgs) -> Result<()> 
         Mode::Fresh { session }
     };
     let spec = launch_spec(&args.agent, mode, settings.as_deref());
-    let program = agents::resolve(&spec.program)?;
+    let comspec = std::env::var("ComSpec").unwrap_or_else(|_| "cmd.exe".into());
+    let (program, argv) = agents::wrap_batch(agents::resolve(&spec.program)?, spec.args, &comspec);
     state.pty.spawn(SpawnRequest {
         env: state.hooks.env_for(&args.id),
         id: args.id,
         program,
-        args: spec.args,
+        args: argv,
         cwd,
         cols: args.cols,
         rows: args.rows,

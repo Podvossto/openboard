@@ -151,13 +151,18 @@ pub fn run_client() -> Result<()> {
     };
     let mut body = String::new();
     std::io::stdin().read_to_string(&mut body)?;
+    forward(&url, &token, &console, body)
+}
+
+/// POST one hook payload to the app's hook server.
+pub fn forward(url: &str, token: &str, console: &str, body: String) -> Result<()> {
     let agent = ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(2)))
         .build()
         .new_agent();
     agent
         .post(&format!("{url}/hook/{console}"))
-        .header(TOKEN_HEADER, &token)
+        .header(TOKEN_HEADER, token)
         .header("content-type", "application/json")
         .send(body)
         .map_err(|e| Error::Hook(e.to_string()))?;
@@ -204,6 +209,40 @@ mod tests {
         assert_eq!(
             got.lock().as_slice(),
             &[("c42".to_string(), HookEvent::Stop, Some("s1".to_string()))]
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn client_forward_drives_status_end_to_end() {
+        use crate::status::{Status, StatusTracker, Tuning};
+        let tracker = Arc::new(Mutex::new(StatusTracker::new(true, Tuning::default())));
+        let seen: Arc<Mutex<Vec<Status>>> = Arc::default();
+        let (t, s) = (tracker.clone(), seen.clone());
+        let srv = HookServer::start(Arc::new(move |_, ev, _| {
+            if let Some(st) = t.lock().on_hook(&ev) {
+                s.lock().push(st);
+            }
+        }))
+        .await
+        .unwrap();
+        let (url, token) = (srv.url(), srv.token.clone());
+        tokio::task::spawn_blocking(move || {
+            for ev in ["SessionStart", "UserPromptSubmit", "Notification", "Stop"] {
+                let body = format!(r#"{{"hook_event_name":"{ev}","session_id":"s"}}"#);
+                forward(&url, &token, "c1", body).unwrap();
+            }
+            assert!(forward(&url, "wrong", "c1", "{}".into()).is_err());
+        })
+        .await
+        .unwrap();
+        assert_eq!(
+            seen.lock().as_slice(),
+            &[
+                Status::Resting,
+                Status::Working,
+                Status::NeedsYou,
+                Status::Resting
+            ]
         );
     }
 

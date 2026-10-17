@@ -1,13 +1,11 @@
 import { memo, useState } from "react";
-import { NodeResizer, type Node, type NodeProps } from "@xyflow/react";
+import { NodeResizer, type NodeProps } from "@xyflow/react";
 import { ask } from "@tauri-apps/plugin-dialog";
-import type { ConsoleNode } from "../../lib/types";
+import type { ConsoleFlowNode } from "../board/nodes";
 import { agentLabel, useBoard } from "../../store/board";
 import { ipc } from "../../lib/ipc";
 import { STATUS_COLOR, STATUS_LABEL } from "./statusStyle";
 import { TerminalView } from "./TerminalView";
-
-export type ConsoleFlowNode = Node<{ console: ConsoleNode }, "console">;
 
 export const ConsoleNodeView = memo(function ConsoleNodeView({
   data,

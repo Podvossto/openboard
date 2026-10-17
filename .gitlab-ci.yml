@@ -43,7 +43,8 @@ core-test-linux:
     key: cargo-windows
     paths: [.cargo/registry, .cargo/git, target]
   before_script:
-    - if (-not (Test-Path "$env:CARGO_HOME\bin\cargo.exe")) { Invoke-WebRequest https://win.rustup.rs/x86_64 -OutFile rustup-init.exe; .\rustup-init.exe -y --profile minimal --no-modify-path }
+    - Invoke-WebRequest https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
+    - .\rustup-init.exe -y --profile minimal --no-modify-path
     - $env:Path = "$env:CARGO_HOME\bin;$env:Path"
     - cargo --version
 

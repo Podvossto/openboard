@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
+import { useShallow } from "zustand/react/shallow";
 import { open } from "@tauri-apps/plugin-dialog";
 import { ipc } from "../../lib/ipc";
 import type { AgentKind, Detected } from "../../lib/types";
@@ -7,7 +8,7 @@ import { nextPosition, statusCounts, useBoard } from "../../store/board";
 
 export function Toolbar() {
   const [det, setDet] = useState<Detected | null>(null);
-  const counts = useBoard((s) => statusCounts(s.runtime));
+  const counts = useBoard(useShallow((s) => statusCounts(s.runtime)));
   const flow = useReactFlow();
 
   useEffect(() => {
