@@ -110,6 +110,7 @@ w.__TAURI_INTERNALS__ = {
       case "write_console": {
         const id = args.id as string;
         const d = args.data as string;
+        // eslint-disable-next-line no-control-regex
         if (d !== "\r") send(id, d.replace(/\x1b\[20[01]~/g, ""));
         else send(id, "\r\n");
         return null;

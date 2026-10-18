@@ -1,0 +1,14 @@
+.app { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg); }
+.app-body { display: flex; flex: 1; min-height: 0; }
+.stage { flex: 1; position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.stage > .react-flow { position: absolute; inset: 0; }
+.splash {
+  display: grid; place-items: center; height: 100%; color: var(--text-3);
+  font-size: 18px; font-weight: 600; letter-spacing: 0.04em; animation: fade-in var(--dur-2) var(--ease);
+}
+.notice {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 40;
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px;
+  background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--r-md);
+  color: var(--text); box-shadow: var(--shadow-1); animation: pop var(--dur-2) var(--ease);
+}

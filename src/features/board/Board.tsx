@@ -1,35 +1,53 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   applyNodeChanges,
   Background,
   BackgroundVariant,
-  Controls,
   MiniMap,
   ReactFlow,
   type NodeChange,
   type Viewport,
 } from "@xyflow/react";
 import { ConsoleNodeView } from "../console/ConsoleNodeView";
-import { useBoard } from "../../store/board";
+import { activeWorkspace, useBoard } from "../../store/board";
 import { STATUS_COLOR } from "../console/statusStyle";
-import { persistableChanges, reconcile, type ConsoleFlowNode } from "./nodes";
+import { persistableChanges, reconcile, type AppNode } from "./nodes";
+import { GroupNodeView } from "./GroupNodeView";
+import { ZoomControl } from "./ZoomControl";
+import "./board.css";
 
-const nodeTypes = { console: ConsoleNodeView };
+const nodeTypes = { console: ConsoleNodeView, group: GroupNodeView };
 
+/** Shows ONLY the active workspace; remounts per workspace so its saved viewport applies. */
 export function Board() {
-  const consoles = useBoard((s) => s.workspace.consoles);
-  const viewport = useBoard((s) => s.workspace.viewport);
+  const wsId = useBoard((s) => activeWorkspace(s.board).id);
+  return <WorkspaceCanvas key={wsId} />;
+}
+
+function WorkspaceCanvas() {
+  const consoles = useBoard((s) => activeWorkspace(s.board).consoles);
+  const groups = useBoard((s) => activeWorkspace(s.board).groups);
   const runtime = useBoard((s) => s.runtime);
-  const [nodes, setNodes] = useState<ConsoleFlowNode[]>(() => reconcile(consoles, []));
+  // viewport is only read on mount (defaultViewport) — later changes come from the canvas itself
+  const [initialViewport] = useState(() => activeWorkspace(useBoard.getState().board).viewport);
+  const [nodes, setNodes] = useState<AppNode[]>(() => reconcile(consoles, groups, []));
 
   // Store → nodes (add/remove/rename/persisted moves).
-  useEffect(() => setNodes((prev) => reconcile(consoles, prev)), [consoles]);
+  useEffect(() => setNodes((prev) => reconcile(consoles, groups, prev)), [consoles, groups]);
 
-  const onNodesChange = useCallback((changes: NodeChange<ConsoleFlowNode>[]) => {
-    setNodes((nds) => applyNodeChanges(changes, nds));
-    const { patchConsole } = useBoard.getState();
-    for (const { id, patch } of persistableChanges(changes)) patchConsole(id, patch);
-  }, []);
+  const groupIds = useMemo(() => new Set(groups.map((g) => g.id)), [groups]);
+
+  const onNodesChange = useCallback(
+    (changes: NodeChange<AppNode>[]) => {
+      setNodes((nds) => applyNodeChanges(changes, nds));
+      const st = useBoard.getState();
+      for (const { id, kind, patch } of persistableChanges(changes, groupIds)) {
+        if (kind === "group") st.patchGroup(id, patch);
+        else st.patchConsole(id, patch);
+      }
+    },
+    [groupIds],
+  );
 
   const onMoveEnd = useCallback((_: unknown, v: Viewport) => {
     useBoard.getState().setViewport(v);
@@ -40,8 +58,10 @@ export function Board() {
       nodes={nodes}
       nodeTypes={nodeTypes}
       onNodesChange={onNodesChange}
-      defaultViewport={viewport}
+      defaultViewport={initialViewport}
       onMoveEnd={onMoveEnd}
+      onNodeClick={(_, n) => useBoard.getState().setFocused(n.type === "console" ? n.id : null)}
+      onPaneClick={() => useBoard.getState().setFocused(null)}
       minZoom={0.15}
       maxZoom={2}
       panOnScroll
@@ -53,12 +73,18 @@ export function Board() {
       colorMode="dark"
     >
       <Background variant={BackgroundVariant.Dots} gap={24} size={1} />
-      <Controls showInteractive={false} />
       <MiniMap
+        className="board-minimap"
         pannable
         zoomable
-        nodeColor={(n) => STATUS_COLOR[runtime[n.id]?.running ? (runtime[n.id]?.status ?? "exited") : "exited"]}
+        maskColor="rgba(10, 12, 16, 0.7)"
+        nodeColor={(n) => {
+          if (n.type === "group") return "rgba(124, 156, 255, 0.18)";
+          const r = runtime[n.id];
+          return STATUS_COLOR[r?.running ? r.status : "exited"];
+        }}
       />
+      <ZoomControl />
     </ReactFlow>
   );
 }

@@ -1,11 +1,11 @@
 import type { Status } from "../../lib/types";
 
 export const STATUS_COLOR: Record<Status, string> = {
-  starting: "#8b93a7",
-  working: "#4f8cff",
-  resting: "#3fb68b",
-  needsYou: "#f5a524",
-  exited: "#5b6273",
+  starting: "var(--text-3)",
+  working: "var(--info)",
+  resting: "var(--ok)",
+  needsYou: "var(--warn)",
+  exited: "var(--text-3)",
 };
 
 export const STATUS_LABEL: Record<Status, string> = {
