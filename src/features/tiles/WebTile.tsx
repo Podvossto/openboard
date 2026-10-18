@@ -52,7 +52,8 @@ export function WebTile({ tile, setData }: { tile: Tile<"web">; setData: (d: Til
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+    // the stage only exists in device mode with a URL — re-measure when it (re)mounts
+  }, [responsive, url]);
   const s = zoom === "fit" ? fitScale(stageSize.w - 24, stageSize.h - 24, w, h) : zoom;
   const pct = `${Math.round((zoom === "fit" ? s : zoom) * 100)}%`;
 

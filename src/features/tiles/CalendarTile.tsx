@@ -101,7 +101,7 @@ export function CalendarTile({ tile, setData }: { tile: Tile<"calendar">; setDat
                   <span
                     className={`px-0.5 text-[10.5px] font-semibold tabular-nums ${
                       date === today
-                        ? "grid size-4 place-items-center rounded-full bg-accent text-bg"
+                        ? "grid h-[18px] min-w-[18px] place-items-center self-start rounded-full bg-accent px-1 text-bg"
                         : inMonth
                           ? "text-ink-2"
                           : "text-ink-3/50"
