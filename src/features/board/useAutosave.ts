@@ -9,17 +9,13 @@ export function useAutosave() {
   const save = useMemo(
     () =>
       debounce(() => {
-        ipc.saveWorkspace(useBoard.getState().workspace).catch((e) => {
-          console.error("save failed", e);
-        });
+        ipc.saveBoard(useBoard.getState().board).catch((e) => console.error("save failed", e));
       }, 400),
     [],
   );
-
   useEffect(() => {
     if (revision > 0) save();
   }, [revision, save]);
-
   useEffect(() => {
     const flush = () => save.flush();
     window.addEventListener("beforeunload", flush);

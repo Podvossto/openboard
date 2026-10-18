@@ -1,0 +1,6 @@
+#!/bin/sh
+# Type-check-only stub for `cargo check --target x86_64-pc-windows-msvc` on Linux:
+# pretends to be llvm-rc and writes an empty resource file. Never use for real builds.
+case "$*" in *"/?"*) echo "OVERVIEW: LLVM Resource Converter"; echo "/no-preprocess"; exit 0;; esac
+while [ $# -gt 0 ]; do [ "$1" = "/fo" ] && { : > "$2"; }; shift; done
+exit 0

@@ -1,45 +1,145 @@
+// CONTRACT: central zustand store. All features read/write board state ONLY through these
+// actions. Runtime (status/running) is NOT persisted; everything in `board` is.
 import { create } from "zustand";
-import type { AgentKind, ConsoleNode, Status, Viewport, Workspace } from "../lib/types";
+import type {
+  AgentKind,
+  Board,
+  ConsoleNode,
+  Group,
+  HookLogEntry,
+  Preset,
+  Settings,
+  Status,
+  Viewport,
+  Workspace,
+} from "../lib/types";
 
 export interface Runtime {
   status: Status;
-  /** true once the PTY is alive in this app run */
+  /** PTY alive in this app run */
   running: boolean;
   exitCode?: number | null;
+  /** last 30 hook events (diagnostics) */
+  hooks?: HookLogEntry[];
 }
+
+export const DEFAULT_SETTINGS: Settings = {
+  defaultCwd: "",
+  defaultAgent: { kind: "claudeCode" },
+  shell: "",
+  claudeArgs: [],
+  codexArgs: [],
+  notifyNeedsYou: true,
+  blinkNeedsYou: true,
+  fontSize: 13,
+  showUsage: true,
+};
+
+export const CONSOLE_W = 680;
+export const CONSOLE_H = 420;
+export const GAP = 28;
+export const GROUP_PAD = 24;
+export const GROUP_HEADER = 40;
+export const GROUP_COLORS = ["#7c9cff", "#5fd4a8", "#f2b45c", "#e57ad8", "#6fd0e8", "#ff8a7a"];
+
+const emptyBoard = (): Board => ({
+  version: 2,
+  active: "ws-main",
+  workspaces: [{ id: "ws-main", name: "Main", viewport: { x: 0, y: 0, zoom: 1 }, consoles: [], groups: [], memory: "" }],
+  presets: [],
+});
 
 interface BoardState {
   loaded: boolean;
-  workspace: Workspace;
+  board: Board;
+  settings: Settings;
+  /** what an empty defaultCwd resolves to (display only) */
+  resolvedCwd: string;
   runtime: Record<string, Runtime>;
-  /** bumps on every persisted change → triggers debounced save */
+  /** bumps on every persisted change → debounced save */
   revision: number;
+  /** console id with keyboard focus (command bar default target) */
+  focused: string | null;
+  /** id of console whose "…" menu / rename / settings is open */
+  ui: { settingsOpen: boolean; memoryOpen: boolean };
 
-  hydrate: (ws: Workspace) => void;
-  addConsole: (c: ConsoleNode) => void;
+  hydrate: (b: Board) => void;
+  setSettings: (s: Settings, resolvedCwd: string) => void;
+
+  // workspaces
+  addWorkspace: (ws: Workspace) => void;
+  renameWorkspace: (id: string, name: string) => void;
+  removeWorkspace: (id: string) => void;
+  setActive: (id: string) => void;
+  setViewport: (v: Viewport) => void;
+  setMemory: (text: string) => void;
+
+  // consoles (always in the ACTIVE workspace unless noted)
+  addConsoles: (c: ConsoleNode[]) => void;
   removeConsole: (id: string) => void;
   patchConsole: (id: string, patch: Partial<ConsoleNode>) => void;
-  setViewport: (v: Viewport) => void;
+
+  // groups
+  addGroup: (g: Group) => void;
+  patchGroup: (id: string, patch: Partial<Group>) => void;
+  /** remove group; its consoles become ungrouped at their absolute position */
+  removeGroup: (id: string) => void;
+
+  // presets
+  savePreset: (p: Preset) => void;
+  removePreset: (id: string) => void;
+
+  // runtime
   setRuntime: (id: string, patch: Partial<Runtime>) => void;
+  pushHook: (id: string, event: string) => void;
+  setFocused: (id: string | null) => void;
+  setUi: (patch: Partial<BoardState["ui"]>) => void;
 }
 
-const emptyWs: Workspace = {
-  version: 1,
-  name: "Main",
-  viewport: { x: 0, y: 0, zoom: 1 },
-  consoles: [],
-};
+/** immutably update the active workspace */
+function withActive(b: Board, f: (w: Workspace) => Workspace): Board {
+  return { ...b, workspaces: b.workspaces.map((w) => (w.id === b.active ? f(w) : w)) };
+}
 
 export const useBoard = create<BoardState>((set) => ({
   loaded: false,
-  workspace: emptyWs,
+  board: emptyBoard(),
+  settings: DEFAULT_SETTINGS,
+  resolvedCwd: "",
   runtime: {},
   revision: 0,
+  focused: null,
+  ui: { settingsOpen: false, memoryOpen: false },
 
-  hydrate: (ws) => set({ workspace: ws, loaded: true }),
-  addConsole: (c) =>
+  hydrate: (board) => set({ board, loaded: true }),
+  setSettings: (settings, resolvedCwd) => set({ settings, resolvedCwd }),
+
+  addWorkspace: (ws) =>
     set((s) => ({
-      workspace: { ...s.workspace, consoles: [...s.workspace.consoles, c] },
+      board: { ...s.board, workspaces: [...s.board.workspaces, ws], active: ws.id },
+      revision: s.revision + 1,
+    })),
+  renameWorkspace: (id, name) =>
+    set((s) => ({
+      board: { ...s.board, workspaces: s.board.workspaces.map((w) => (w.id === id ? { ...w, name } : w)) },
+      revision: s.revision + 1,
+    })),
+  removeWorkspace: (id) =>
+    set((s) => {
+      if (s.board.workspaces.length <= 1) return s;
+      const workspaces = s.board.workspaces.filter((w) => w.id !== id);
+      const active = s.board.active === id ? workspaces[0]!.id : s.board.active;
+      return { board: { ...s.board, workspaces, active }, revision: s.revision + 1 };
+    }),
+  setActive: (id) => set((s) => ({ board: { ...s.board, active: id }, revision: s.revision + 1 })),
+  setViewport: (viewport) =>
+    set((s) => ({ board: withActive(s.board, (w) => ({ ...w, viewport })), revision: s.revision + 1 })),
+  setMemory: (memory) =>
+    set((s) => ({ board: withActive(s.board, (w) => ({ ...w, memory })), revision: s.revision + 1 })),
+
+  addConsoles: (cs) =>
+    set((s) => ({
+      board: withActive(s.board, (w) => ({ ...w, consoles: [...w.consoles, ...cs] })),
       revision: s.revision + 1,
     })),
   removeConsole: (id) =>
@@ -47,29 +147,76 @@ export const useBoard = create<BoardState>((set) => ({
       const runtime = { ...s.runtime };
       delete runtime[id];
       return {
-        workspace: { ...s.workspace, consoles: s.workspace.consoles.filter((c) => c.id !== id) },
+        board: {
+          ...s.board,
+          workspaces: s.board.workspaces.map((w) => ({ ...w, consoles: w.consoles.filter((c) => c.id !== id) })),
+        },
         runtime,
+        focused: s.focused === id ? null : s.focused,
         revision: s.revision + 1,
       };
     }),
   patchConsole: (id, patch) =>
     set((s) => ({
-      workspace: {
-        ...s.workspace,
-        consoles: s.workspace.consoles.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+      board: {
+        ...s.board,
+        workspaces: s.board.workspaces.map((w) => ({
+          ...w,
+          consoles: w.consoles.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+        })),
       },
       revision: s.revision + 1,
     })),
-  setViewport: (viewport) =>
-    set((s) => ({ workspace: { ...s.workspace, viewport }, revision: s.revision + 1 })),
+
+  addGroup: (g) =>
+    set((s) => ({ board: withActive(s.board, (w) => ({ ...w, groups: [...w.groups, g] })), revision: s.revision + 1 })),
+  patchGroup: (id, patch) =>
+    set((s) => ({
+      board: withActive(s.board, (w) => ({ ...w, groups: w.groups.map((g) => (g.id === id ? { ...g, ...patch } : g)) })),
+      revision: s.revision + 1,
+    })),
+  removeGroup: (id) =>
+    set((s) => ({
+      board: withActive(s.board, (w) => {
+        const g = w.groups.find((x) => x.id === id);
+        return {
+          ...w,
+          groups: w.groups.filter((x) => x.id !== id),
+          consoles: w.consoles.map((c) =>
+            c.group === id && g ? { ...c, group: undefined, x: c.x + g.x, y: c.y + g.y } : c,
+          ),
+        };
+      }),
+      revision: s.revision + 1,
+    })),
+
+  savePreset: (p) =>
+    set((s) => ({
+      board: { ...s.board, presets: [...s.board.presets.filter((x) => x.id !== p.id), p] },
+      revision: s.revision + 1,
+    })),
+  removePreset: (id) =>
+    set((s) => ({ board: { ...s.board, presets: s.board.presets.filter((x) => x.id !== id) }, revision: s.revision + 1 })),
+
   setRuntime: (id, patch) =>
     set((s) => ({
-      runtime: {
-        ...s.runtime,
-        [id]: { status: "starting", running: false, ...s.runtime[id], ...patch },
-      },
+      runtime: { ...s.runtime, [id]: { status: "starting", running: false, ...s.runtime[id], ...patch } },
     })),
+  pushHook: (id, event) =>
+    set((s) => {
+      const prev = s.runtime[id] ?? { status: "starting" as Status, running: false };
+      const hooks = [...(prev.hooks ?? []), { at: Date.now(), event }].slice(-30);
+      return { runtime: { ...s.runtime, [id]: { ...prev, hooks } } };
+    }),
+  setFocused: (focused) => set({ focused }),
+  setUi: (patch) => set((s) => ({ ui: { ...s.ui, ...patch } })),
 }));
+
+// ---------- selectors & pure helpers (unit-tested) ----------
+
+export function activeWorkspace(b: Board): Workspace {
+  return b.workspaces.find((w) => w.id === b.active) ?? b.workspaces[0]!;
+}
 
 export function agentLabel(a: AgentKind): string {
   switch (a.kind) {
@@ -78,24 +225,66 @@ export function agentLabel(a: AgentKind): string {
     case "codex":
       return "Codex";
     case "custom":
-      return a.program;
+      return a.program || "Shell";
   }
 }
 
-/** Next free spot so new consoles don't stack exactly on top of each other. */
-export function nextPosition(existing: ConsoleNode[], w = 720, h = 440, gap = 32) {
-  const cols = 3;
-  const i = existing.length;
-  return { x: (i % cols) * (w + gap), y: Math.floor(i / cols) * (h + gap) };
+export function agentShort(a: AgentKind): string {
+  return a.kind === "claudeCode" ? "claude" : a.kind === "codex" ? "codex" : a.program || "shell";
 }
 
-export function statusCounts(runtime: Record<string, Runtime>) {
+/** Next free grid slot (ungrouped consoles) so new consoles never stack. */
+export function nextPosition(existing: ConsoleNode[], w = CONSOLE_W, h = CONSOLE_H, gap = GAP) {
+  const loose = existing.filter((c) => !c.group);
+  const taken = new Set(loose.map((c) => `${Math.round(c.x / (w + gap))},${Math.round(c.y / (h + gap))}`));
+  for (let i = 0; ; i++) {
+    const col = i % 3;
+    const row = Math.floor(i / 3);
+    if (!taken.has(`${col},${row}`)) return { x: col * (w + gap), y: row * (h + gap) };
+  }
+}
+
+/** Layout for N consoles inside a new group placed at (gx, gy). */
+export function groupLayout(n: number, gx: number, gy: number, w = CONSOLE_W, h = CONSOLE_H) {
+  const cols = n <= 1 ? 1 : n <= 4 ? 2 : 3;
+  const rows = Math.ceil(n / cols);
+  const slots = Array.from({ length: n }, (_, i) => ({
+    x: GROUP_PAD + (i % cols) * (w + GAP),
+    y: GROUP_HEADER + GROUP_PAD + Math.floor(i / cols) * (h + GAP),
+  }));
+  return {
+    group: {
+      x: gx,
+      y: gy,
+      width: GROUP_PAD * 2 + cols * w + (cols - 1) * GAP,
+      height: GROUP_HEADER + GROUP_PAD * 2 + rows * h + (rows - 1) * GAP,
+    },
+    slots,
+  };
+}
+
+/** Bottom-most y of anything on the board — new groups go below it. */
+export function boardBottom(ws: Workspace): number {
+  const ys = [
+    ...ws.consoles.filter((c) => !c.group).map((c) => c.y + c.height),
+    ...ws.groups.map((g) => g.y + g.height),
+  ];
+  return ys.length ? Math.max(...ys) + GAP * 2 : 0;
+}
+
+export function statusCounts(runtime: Record<string, Runtime>, ids?: string[]) {
   const c = { working: 0, resting: 0, needsYou: 0, stopped: 0 };
-  for (const r of Object.values(runtime)) {
-    if (!r.running || r.status === "exited") c.stopped++;
+  const entries = ids ? ids.map((id) => runtime[id]) : Object.values(runtime);
+  for (const r of entries) {
+    if (!r || !r.running || r.status === "exited") c.stopped++;
     else if (r.status === "working") c.working++;
     else if (r.status === "needsYou") c.needsYou++;
     else c.resting++;
   }
   return c;
+}
+
+/** effective status for display (not running → exited) */
+export function displayStatus(r: Runtime | undefined): Status {
+  return r?.running ? r.status : "exited";
 }
