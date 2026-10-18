@@ -61,7 +61,10 @@ windows-installer:
   stage: build
   needs: [frontend, core-test-windows]
   script:
-    - if (-not (Get-Command node -ErrorAction SilentlyContinue)) { choco install nodejs-lts -y --no-progress; $env:Path = "C:\Program Files\nodejs;$env:Path" }
+    # Runner ships Node 21 (unsupported by Vite 8) — pin Node 24 LTS from the official zip.
+    - $nodeVer = "v24.22.0"
+    - if (-not (Test-Path "node-$nodeVer-win-x64\node.exe")) { Invoke-WebRequest "https://nodejs.org/dist/$nodeVer/node-$nodeVer-win-x64.zip" -OutFile node.zip; Expand-Archive node.zip -DestinationPath . -Force }
+    - $env:Path = "$PWD\node-$nodeVer-win-x64;$env:Path"
     - node --version; npm --version
     - npm ci
     - if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
