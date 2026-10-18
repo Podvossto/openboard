@@ -195,7 +195,7 @@ impl<E: PtyEvents> PtyManager<E> {
                                 sb.push(chunk);
                                 me.events.output(&id, chunk);
                             }
-                            if let Some(st) = tracker.lock().on_output(Instant::now()) {
+                            if let Some(st) = tracker.lock().on_output(Instant::now(), chunk) {
                                 me.events.status(&id, st);
                             }
                         }
@@ -292,6 +292,30 @@ impl<E: PtyEvents> PtyManager<E> {
         let sb = self.sessions.lock().get(id).map(|s| s.scrollback.clone())?;
         let guard = sb.lock();
         Some(f(&guard.snapshot()))
+    }
+
+    /// Plain-text tail of the console (ANSI stripped) — for handoff briefs.
+    pub fn transcript(&self, id: &str, max_chars: usize) -> Option<String> {
+        let raw = self.scrollback(id)?;
+        let text = crate::ansi::strip(&raw);
+        let lines: Vec<&str> = text
+            .lines()
+            .map(str::trim_end)
+            .filter(|l| !l.is_empty())
+            .collect();
+        let mut out = lines.join("\n");
+        if out.len() > max_chars {
+            let mut cut = out.len() - max_chars;
+            while !out.is_char_boundary(cut) {
+                cut += 1;
+            }
+            out = out[cut..].to_string();
+        }
+        Some(out)
+    }
+
+    pub fn running_ids(&self) -> Vec<String> {
+        self.sessions.lock().keys().cloned().collect()
     }
 
     pub fn scrollback(&self, id: &str) -> Option<Vec<u8>> {

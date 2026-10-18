@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Main window permissions",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:allow-open", "dialog:allow-ask"]
+  "permissions": ["core:default", "dialog:allow-open", "dialog:allow-ask", "notification:default", "core:window:allow-request-user-attention"]
 }

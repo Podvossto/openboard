@@ -127,8 +127,11 @@ pub fn claude_settings(hook_command: &str) -> Value {
             "SessionStart":     [{ "hooks": cmd }],
             "UserPromptSubmit": [{ "hooks": cmd }],
             "PreToolUse":       [{ "matcher": "*", "hooks": cmd }],
+            "PostToolUse":      [{ "matcher": "*", "hooks": cmd }],
+            "PermissionRequest":[{ "matcher": "*", "hooks": cmd }],
             "Stop":             [{ "hooks": cmd }],
-            "Notification":     [{ "hooks": cmd }]
+            "SubagentStop":     [{ "hooks": cmd }],
+            "Notification":     [{ "matcher": "*", "hooks": cmd }]
         }
     })
 }
@@ -227,7 +230,12 @@ mod tests {
         .unwrap();
         let (url, token) = (srv.url(), srv.token.clone());
         tokio::task::spawn_blocking(move || {
-            for ev in ["SessionStart", "UserPromptSubmit", "Notification", "Stop"] {
+            for ev in [
+                "SessionStart",
+                "UserPromptSubmit",
+                "PermissionRequest",
+                "Stop",
+            ] {
                 let body = format!(r#"{{"hook_event_name":"{ev}","session_id":"s"}}"#);
                 forward(&url, &token, "c1", body).unwrap();
             }
@@ -253,6 +261,8 @@ mod tests {
             "SessionStart",
             "UserPromptSubmit",
             "PreToolUse",
+            "PostToolUse",
+            "PermissionRequest",
             "Stop",
             "Notification",
         ] {
