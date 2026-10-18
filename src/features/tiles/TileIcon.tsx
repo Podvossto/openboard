@@ -7,6 +7,7 @@ const PATHS: Record<TileKind, string> = {
   kanban: "M4 5h4v14H4zM10 5h4v9h-4zM16 5h4v6h-4z",
   web: "M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z",
   git: "M7 5v10M7 15a2 2 0 100 4 2 2 0 000-4zM7 5a2 2 0 100-.01M17 9a2 2 0 100-4 2 2 0 000 4zM17 9c0 4-4 4-10 6",
+  calendar: "M5 7h14v13H5zM5 11h14M9 4v4M15 4v4M9 15h3",
 };
 
 export function TileIcon({ kind, size = 15 }: { kind: TileKind; size?: number }) {

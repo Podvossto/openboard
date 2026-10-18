@@ -97,7 +97,8 @@ pub struct Group {
 }
 
 /// A board tile that is not a terminal. `data` is owned by the frontend per `kind`
-/// (note: {text}, checklist: {items}, kanban: {columns}, web: {url}, git: {cwd}).
+/// (note: {text}, checklist: {items}, kanban: {columns}, web: {url,…}, git: {cwd},
+/// calendar: {events, view, cursor}).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Tile {
@@ -123,6 +124,7 @@ pub enum TileKind {
     Kanban,
     Web,
     Git,
+    Calendar,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -259,6 +261,30 @@ mod tests {
         .unwrap();
         assert_eq!(t.kind, TileKind::Kanban);
         assert_eq!(t.data["columns"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn calendar_tile_json_roundtrip() {
+        let t: Tile = serde_json::from_str(
+            r##"{"id":"cal","kind":"calendar","title":"Calendar","x":1,"y":2,"width":560,"height":460,
+                "data":{"events":[{"id":"e1","date":"2026-10-18","time":"09:00","title":"Standup","color":"#8ea2ff"}],
+                        "view":"month","cursor":"2026-10-18"}}"##,
+        )
+        .unwrap();
+        assert_eq!(t.kind, TileKind::Calendar);
+        assert_eq!(t.data["events"][0]["title"], serde_json::json!("Standup"));
+        assert_eq!(
+            serde_json::to_string(&TileKind::Calendar).unwrap(),
+            r#""calendar""#
+        );
+        // web tile keeps its device fields (free JSON) across a round-trip
+        let w: Tile = serde_json::from_str(
+            r#"{"id":"w","kind":"web","x":0,"y":0,"width":720,"height":480,
+                "data":{"url":"http://localhost:5173","preset":"iphone-15-pro","w":393,"h":852,"rotated":false,"zoom":"fit"}}"#,
+        )
+        .unwrap();
+        assert_eq!(w.data["preset"], serde_json::json!("iphone-15-pro"));
+        assert_eq!(w.data["zoom"], serde_json::json!("fit"));
     }
 
     #[test]

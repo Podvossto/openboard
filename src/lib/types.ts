@@ -68,7 +68,7 @@ export interface Viewport {
   zoom: number;
 }
 
-export type TileKind = "note" | "checklist" | "kanban" | "web" | "git";
+export type TileKind = "note" | "checklist" | "kanban" | "web" | "git" | "calendar";
 
 export interface ChecklistItem {
   id: string;
@@ -84,12 +84,34 @@ export interface KanbanColumn {
   name: string;
   cards: KanbanCard[];
 }
+export type CalendarView = "month" | "week";
+export interface CalEvent {
+  id: string;
+  /** YYYY-MM-DD */
+  date: string;
+  /** optional "HH:MM" */
+  time?: string;
+  title: string;
+  /** chip color (hex) */
+  color: string;
+}
 /** `data` shape per kind (stored as free JSON by the backend). */
 export interface TileData {
   note: { text: string; color?: string };
   checklist: { items: ChecklistItem[] };
   kanban: { columns: KanbanColumn[] };
-  web: { url: string };
+  web: {
+    url: string;
+    /** device preset id from logic.ts DEVICES ("responsive" = fill the tile) */
+    preset?: string;
+    /** device viewport in CSS px (rotate = swapped) */
+    w?: number;
+    h?: number;
+    rotated?: boolean;
+    /** "fit" (scale to the tile) or a fixed factor (0.5 / 0.75 / 1) */
+    zoom?: number | "fit";
+  };
+  calendar: { events: CalEvent[]; view: CalendarView; cursor: string };
   git: { cwd: string };
 }
 

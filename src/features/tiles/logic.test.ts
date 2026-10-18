@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { KanbanColumn } from "../../lib/types";
-import { changeBadge, checklistMarkdown, checklistProgress, defaultData, freeSpot, moveCard, newTile, normalizeUrl } from "./logic";
+import { changeBadge, checklistMarkdown, checklistProgress, DEVICES, defaultData, fitScale, freeSpot, matchPreset, moveCard, newTile, normalizeUrl } from "./logic";
 
 const cols = (): KanbanColumn[] => [
   { id: "a", name: "To do", cards: [{ id: "1", text: "one" }, { id: "2", text: "two" }, { id: "3", text: "three" }] },
@@ -54,12 +54,53 @@ describe("checklist + tiles + git", () => {
     expect(t.data.columns.map((c) => c.name)).toEqual(["To do", "Doing", "Done"]);
     expect(defaultData("note")).toEqual({ text: "" });
   });
+  it("newTile calendar defaults to month view at today's cursor", () => {
+    const t = newTile("t2", "calendar", 0, 0);
+    expect(t).toMatchObject({ kind: "calendar", title: "Calendar", width: 560, height: 460 });
+    expect(t.data).toMatchObject({ events: [], view: "month" });
+    expect(t.data.cursor).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
   it("change badges", () => {
     expect(changeBadge("??").tone).toBe("new");
     expect(changeBadge(".M").label).toBe("M");
     expect(changeBadge("D.").tone).toBe("del");
     expect(changeBadge("UU").tone).toBe("conf");
     expect(changeBadge("A.").tone).toBe("add");
+  });
+});
+
+describe("web device presets", () => {
+  it("fitScale shrinks to the tightest axis and never upscales", () => {
+    expect(fitScale(720, 480, 1366, 768)).toBeCloseTo(720 / 1366, 10);
+    expect(fitScale(720, 480, 393, 852)).toBeCloseTo(480 / 852, 10);
+    expect(fitScale(720, 480, 375, 667)).toBeCloseTo(480 / 667, 10);
+    expect(fitScale(2000, 2000, 393, 852)).toBe(1); // device smaller than the tile
+    expect(fitScale(720, 480, 720, 480)).toBe(1);
+  });
+  it("fitScale survives degenerate input", () => {
+    expect(fitScale(0, 480, 393, 852)).toBe(1);
+    expect(fitScale(720, 480, 0, 852)).toBe(1);
+    expect(fitScale(-5, 480, 393, 852)).toBe(1);
+  });
+  it("device presets carry the spec'd viewports", () => {
+    expect(Object.fromEntries(DEVICES.map((d) => [d.id, [d.w, d.h]]))).toMatchObject({
+      responsive: [null, null],
+      "iphone-se": [375, 667],
+      "iphone-15-pro": [393, 852],
+      "pixel-8": [412, 915],
+      "ipad-mini": [768, 1024],
+      "ipad-pro": [1024, 1366],
+      laptop: [1366, 768],
+      desktop: [1920, 1080],
+    });
+  });
+  it("matchPreset keeps the preset across rotation, else falls back to custom", () => {
+    expect(matchPreset("iphone-15-pro", 393, 852)).toBe("iphone-15-pro");
+    expect(matchPreset("iphone-15-pro", 852, 393)).toBe("iphone-15-pro"); // rotated
+    expect(matchPreset("iphone-15-pro", 400, 852)).toBe("custom"); // edited by hand
+    expect(matchPreset("responsive", 123, 456)).toBe("responsive");
+    expect(matchPreset(undefined, 393, 852)).toBe("custom");
+    expect(matchPreset("custom", 393, 852)).toBe("custom");
   });
 });
 
