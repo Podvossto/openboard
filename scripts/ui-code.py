@@ -84,7 +84,10 @@ with sync_playwright() as p:
     pg.wait_for_timeout(500)
     # close panel
     dlg.get_by_role("button", name="Close code studio").click()
-    pg.wait_for_timeout(500)
+    try:
+        pg.get_by_role("dialog", name="Code studio").wait_for(state="detached", timeout=5000)
+    except Exception:
+        pass
     check(pg.get_by_role("dialog", name="Code studio").count() == 0, "panel closes")
     tile = pg.locator(".tile[data-kind='code']")
     check(tile.count() == 1, "code tile on board")
@@ -99,7 +102,10 @@ with sync_playwright() as p:
     pg.wait_for_timeout(400)
     check(dlg.get_by_role("tab", name="main.ts").count() == 1 and "edited-by-test" in dlg.locator(".cm-content").inner_text(), "dblclick tile opens file in studio")
     pg.keyboard.press("Escape")
-    pg.wait_for_timeout(500)
+    try:
+        pg.get_by_role("dialog", name="Code studio").wait_for(state="detached", timeout=5000)
+    except Exception:
+        pass
     check(pg.get_by_role("dialog", name="Code studio").count() == 0, "Esc closes")
 
     # shortcut
