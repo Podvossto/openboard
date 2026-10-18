@@ -447,6 +447,82 @@ pub async fn git_run(
         .map_err(|e| Error::Pty(e.to_string()))?
 }
 
+#[tauri::command]
+pub async fn git_stage(state: State<'_, AppState>, cwd: String, paths: Vec<String>) -> Result<()> {
+    let dir = tile_cwd(&state, &cwd);
+    tauri::async_runtime::spawn_blocking(move || board_core::git::stage(&dir, &paths))
+        .await
+        .map_err(|e| Error::Pty(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn git_unstage(
+    state: State<'_, AppState>,
+    cwd: String,
+    paths: Vec<String>,
+) -> Result<()> {
+    let dir = tile_cwd(&state, &cwd);
+    tauri::async_runtime::spawn_blocking(move || board_core::git::unstage(&dir, &paths))
+        .await
+        .map_err(|e| Error::Pty(e.to_string()))?
+}
+
+/// Commit the index as-is (the UI stages files itself; nothing is added here).
+#[tauri::command]
+pub async fn git_commit(
+    state: State<'_, AppState>,
+    cwd: String,
+    message: String,
+) -> Result<String> {
+    let dir = tile_cwd(&state, &cwd);
+    tauri::async_runtime::spawn_blocking(move || board_core::git::commit(&dir, &message))
+        .await
+        .map_err(|e| Error::Pty(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn git_branches(
+    state: State<'_, AppState>,
+    cwd: String,
+) -> Result<Vec<board_core::git::GitBranch>> {
+    let dir = tile_cwd(&state, &cwd);
+    tauri::async_runtime::spawn_blocking(move || board_core::git::branches(&dir))
+        .await
+        .map_err(|e| Error::Pty(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn git_checkout(state: State<'_, AppState>, cwd: String, branch: String) -> Result<()> {
+    let dir = tile_cwd(&state, &cwd);
+    tauri::async_runtime::spawn_blocking(move || board_core::git::checkout(&dir, &branch))
+        .await
+        .map_err(|e| Error::Pty(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn git_create_branch(
+    state: State<'_, AppState>,
+    cwd: String,
+    name: String,
+) -> Result<()> {
+    let dir = tile_cwd(&state, &cwd);
+    tauri::async_runtime::spawn_blocking(move || board_core::git::create_branch(&dir, &name))
+        .await
+        .map_err(|e| Error::Pty(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn git_graph(
+    state: State<'_, AppState>,
+    cwd: String,
+    limit: u32,
+) -> Result<board_core::git::GitGraph> {
+    let dir = tile_cwd(&state, &cwd);
+    tauri::async_runtime::spawn_blocking(move || board_core::git::graph(&dir, limit))
+        .await
+        .map_err(|e| Error::Pty(e.to_string()))?
+}
+
 // ---------- code studio (sandboxed file access) ----------
 
 #[tauri::command]

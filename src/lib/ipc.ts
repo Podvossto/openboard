@@ -13,6 +13,8 @@ import type {
   FileContent,
   FsEntry,
   GitAction,
+  GitBranch,
+  GitGraph,
   GoalVerdict,
   GitStatus,
   RoutePlan,
@@ -82,6 +84,14 @@ export const ipc = {
   fsList: (root: string, rel: string) => invoke<FsEntry[]>("fs_list", { root, rel }),
   fsRead: (root: string, rel: string) => invoke<FileContent>("fs_read", { root, rel }),
   fsWrite: (root: string, rel: string, text: string) => invoke<void>("fs_write", { root, rel, text }),
+  gitStage: (cwd: string, paths: string[]) => invoke<void>("git_stage", { cwd, paths }),
+  gitUnstage: (cwd: string, paths: string[]) => invoke<void>("git_unstage", { cwd, paths }),
+  /** commits the index as-is — stage paths first with gitStage */
+  gitCommit: (cwd: string, message: string) => invoke<string>("git_commit", { cwd, message }),
+  gitBranches: (cwd: string) => invoke<GitBranch[]>("git_branches", { cwd }),
+  gitCheckout: (cwd: string, branch: string) => invoke<void>("git_checkout", { cwd, branch }),
+  gitCreateBranch: (cwd: string, name: string) => invoke<void>("git_create_branch", { cwd, name }),
+  gitGraph: (cwd: string, limit = 60) => invoke<GitGraph>("git_graph", { cwd, limit }),
 };
 
 export const events = {

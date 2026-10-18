@@ -11,7 +11,7 @@ export const TILE_META: Record<TileKind, { label: string; w: number; h: number; 
   checklist: { label: "Checklist", w: 340, h: 320, tint: "#7bd389" },
   kanban: { label: "Kanban", w: 760, h: 420, tint: "#8ea2ff" },
   web: { label: "Web", w: 720, h: 480, tint: "#56d8c9" },
-  git: { label: "Git", w: 400, h: 440, tint: "#ff8a5c" },
+  git: { label: "Git", w: 560, h: 520, tint: "#ff8a5c" },
   code: { label: "Code", w: 520, h: 360, tint: "#c792ea" },
   calendar: { label: "Calendar", w: 560, h: 460, tint: "#e57ad8" },
 };

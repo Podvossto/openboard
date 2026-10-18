@@ -17,8 +17,9 @@ import { AnimatePresence, motion } from "motion/react";
 import { popVariants } from "../../lib/motion";
 import { useDismiss } from "./useDismiss";
 import { ComposeGroup } from "./ComposeGroup";
+import { resumableConsoles, resumeAll } from "../console/launch";
 
-type MenuName = "new" | "compose" | "presets" | null;
+type MenuName = "new" | "compose" | "presets" | "resume" | null;
 
 const AGENTS: { label: string; agent: AgentKind }[] = [
   { label: "Claude Code", agent: { kind: "claudeCode" } },
@@ -119,10 +120,20 @@ export function Dock() {
     say(`Interrupted ${list.length} console${list.length === 1 ? "" : "s"}.`);
   };
 
-  const resumeAll = async () => {
+  /** Relaunch every stopped console that has a resumable session (staggered). */
+  const resumeAllNow = async () => {
+    setMenu(null);
+    if (!resumableConsoles().length) return say("Nothing stopped to resume.");
+    const n = await resumeAll();
+    say(n ? `Resumed ${n} console${n === 1 ? "" : "s"}.` : "Resume failed.");
+  };
+
+  /** Old behaviour: type "continue" into running consoles that are resting. */
+  const nudgeResting = async () => {
+    setMenu(null);
     const st = useBoard.getState();
     const list = running().filter((c) => st.runtime[c.id]?.status === "resting");
-    if (!list.length) return say("Nothing resting to resume.");
+    if (!list.length) return say("Nothing resting.");
     await Promise.all(list.map((c) => submit(c.id, "continue").catch(() => undefined)));
     say(`Sent “continue” to ${list.length} console${list.length === 1 ? "" : "s"}.`);
   };
@@ -313,14 +324,33 @@ export function Dock() {
           >
             Pause all
           </button>
-          <button
-            className="ring-pill"
-            style={{ ["--ring-a" as string]: "#ff6b8a", ["--ring-b" as string]: "#b48cff" }}
-            title="Send “continue” to resting consoles"
-            onClick={() => void resumeAll()}
-          >
-            Resume all
-          </button>
+          <div className="relative">
+            <button
+              className="ring-pill"
+              style={{ ["--ring-a" as string]: "#ff6b8a", ["--ring-b" as string]: "#b48cff" }}
+              title="Relaunch stopped consoles that have a session to resume · right-click for more"
+              aria-expanded={menu === "resume"}
+              onClick={() => void resumeAllNow()}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                toggle("resume");
+              }}
+            >
+              Resume all
+            </button>
+            {menu === "resume" && (
+              <PopMenu>
+                <PopItem onClick={() => void resumeAllNow()}>
+                  <span className="text-ink-2">Resume all</span>
+                  <span className="ml-auto text-[11px] text-ink-3">relaunch stopped</span>
+                </PopItem>
+                <PopItem onClick={() => void nudgeResting()}>
+                  <span className="text-ink-2">Nudge resting (continue)</span>
+                  <span className="ml-auto text-[11px] text-ink-3">typing “continue”</span>
+                </PopItem>
+              </PopMenu>
+            )}
+          </div>
           <button
             className="ring-pill"
             style={{ ["--ring-a" as string]: "#b48cff", ["--ring-b" as string]: "#8ea2ff" }}
