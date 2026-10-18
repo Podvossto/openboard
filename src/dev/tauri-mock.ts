@@ -1,5 +1,5 @@
 // Browser-only Tauri IPC mock for headless UI tests (scripts/ui-smoke.py, `vite --mode mock`).
-// Never bundled in real builds. Exposes window.__ipcLog and window.__mock.emit(event, payload).
+// Never bundled in real builds. window.__mock.emit(event, payload) simulates backend events. Exposes window.__ipcLog and window.__mock.emit(event, payload).
 type Cb = (p: unknown) => void;
 const listeners: Record<string, Cb[]> = {};
 const callbacks = new Map<number, (d: unknown) => void>();
@@ -88,6 +88,31 @@ w.__TAURI_INTERNALS__ = {
             { id: "aider", name: "Aider", program: "aider", install: "pip install aider-install", installed: false },
           ],
         };
+      case "sync_roster":
+        (window as unknown as { __roster?: unknown }).__roster = args.roster;
+        return null;
+      case "usage_all":
+        return [
+          { id: "default-claude", name: "Claude (default)", provider: "anthropic", usage: { session: { percent: 34, resetsAt: new Date(Date.now() + 2 * 3600e3).toISOString() }, weekly: { percent: 71, resetsAt: null }, error: null } },
+          { id: "default-codex", name: "Codex (default)", provider: "openai", usage: { session: { percent: 12, resetsAt: String(Date.now() + 3 * 3600e3) }, weekly: { percent: 40, resetsAt: null }, error: null } },
+          { id: "prof-zai", name: "Z.ai GLM", provider: "zai", usage: { session: { percent: 1, resetsAt: String(Date.now() + 4 * 3600e3) }, weekly: { percent: 1, resetsAt: null }, error: null } },
+        ];
+      case "provider_presets":
+        return [
+          { id: "zai", name: "Z.ai (GLM Coding Plan)", baseUrl: "https://api.z.ai/api/anthropic", model: "glm-4.6", smallModel: "glm-4.5-air", keyHint: "z.ai → API Keys", usage: true },
+          { id: "kimi", name: "Moonshot Kimi", baseUrl: "https://api.moonshot.ai/anthropic", model: "kimi-k2-turbo-preview", smallModel: "kimi-k2-turbo-preview", keyHint: "", usage: false },
+        ];
+      case "profile_key_status": {
+        const ks = (window as unknown as { __keys?: Record<string, string> }).__keys ?? {};
+        return Object.keys(ks).map((id) => ({ id, hasKey: true, masked: "sk-1…abcd" }));
+      }
+      case "set_profile_key": {
+        const w = window as unknown as { __keys?: Record<string, string> };
+        w.__keys = { ...(w.__keys ?? {}), [String(args.id)]: "set" };
+        return null;
+      }
+      case "delete_profile_key":
+        return null;
       case "claude_usage":
         return { session: { percent: 34, resetsAt: new Date(Date.now() + 2 * 3600e3).toISOString() }, weekly: { percent: 71, resetsAt: null }, error: null };
       case "attach_console": {

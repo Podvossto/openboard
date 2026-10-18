@@ -28,15 +28,20 @@ const TOKEN_HEADER: &str = "x-agent-board-token";
 /// `(console_id, event, agent_session_id)` — session id lets the UI track `/clear` & resume ids.
 pub type HookHandler = Arc<dyn Fn(String, HookEvent, Option<String>) + Send + Sync>;
 
+/// MCP tools, installed after start (they need app state that is built later).
+pub type ToolsSlot = Arc<std::sync::OnceLock<Arc<dyn crate::mcp::Tools>>>;
+
 #[derive(Clone)]
 struct Ctx {
     token: Arc<str>,
     handler: HookHandler,
+    tools: ToolsSlot,
 }
 
 pub struct HookServer {
     pub addr: SocketAddr,
     pub token: String,
+    tools: ToolsSlot,
     shutdown: Option<tokio::sync::oneshot::Sender<()>>,
 }
 
@@ -44,12 +49,15 @@ impl HookServer {
     /// Bind 127.0.0.1 on an ephemeral port and serve on the current tokio runtime.
     pub async fn start(handler: HookHandler) -> Result<Self> {
         let token = uuid::Uuid::new_v4().simple().to_string();
+        let tools: ToolsSlot = Arc::default();
         let ctx = Ctx {
             token: token.as_str().into(),
             handler,
+            tools: tools.clone(),
         };
         let app = Router::new()
             .route("/hook/{console}", post(receive))
+            .route("/mcp/{console}", post(mcp_rpc).get(mcp_get))
             .with_state(ctx);
         let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await?;
         let addr = listener.local_addr()?;
@@ -65,8 +73,14 @@ impl HookServer {
         Ok(Self {
             addr,
             token,
+            tools,
             shutdown: Some(tx),
         })
+    }
+
+    /// Install the orchestrator tools (once).
+    pub fn set_tools(&self, t: Arc<dyn crate::mcp::Tools>) {
+        let _ = self.tools.set(t);
     }
 
     pub fn url(&self) -> String {
@@ -97,11 +111,7 @@ async fn receive(
     headers: HeaderMap,
     body: String,
 ) -> StatusCode {
-    let ok = headers
-        .get(TOKEN_HEADER)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|t| constant_time_eq(t.as_bytes(), ctx.token.as_bytes()));
-    if !ok {
+    if !authorized(&ctx, &headers) {
         return StatusCode::UNAUTHORIZED;
     }
     let Ok(payload) = serde_json::from_str::<Value>(&body) else {
@@ -113,6 +123,54 @@ async fn receive(
         .map(str::to_owned);
     (ctx.handler)(console, HookEvent::parse(&payload), session);
     StatusCode::NO_CONTENT
+}
+
+fn authorized(ctx: &Ctx, headers: &HeaderMap) -> bool {
+    headers
+        .get(TOKEN_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|t| constant_time_eq(t.as_bytes(), ctx.token.as_bytes()))
+}
+
+/// Streamable-HTTP MCP: one JSON-RPC message (or batch) per POST, JSON response.
+async fn mcp_rpc(
+    State(ctx): State<Ctx>,
+    Path(console): Path<String>,
+    headers: HeaderMap,
+    body: String,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    if !authorized(&ctx, &headers) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let Some(tools) = ctx.tools.get().cloned() else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let Ok(req) = serde_json::from_str::<Value>(&body) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    // tools may block (PTY writes, transcript) — keep the async runtime free
+    let out = tokio::task::spawn_blocking(move || match &req {
+        Value::Array(batch) => {
+            let rs: Vec<Value> = batch
+                .iter()
+                .filter_map(|r| crate::mcp::handle(tools.as_ref(), &console, r))
+                .collect();
+            (!rs.is_empty()).then_some(Value::Array(rs))
+        }
+        r => crate::mcp::handle(tools.as_ref(), &console, r),
+    })
+    .await
+    .unwrap_or(None);
+    match out {
+        Some(v) => ([("content-type", "application/json")], v.to_string()).into_response(),
+        None => StatusCode::ACCEPTED.into_response(),
+    }
+}
+
+/// No server-initiated stream.
+async fn mcp_get() -> StatusCode {
+    StatusCode::METHOD_NOT_ALLOWED
 }
 
 fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
@@ -252,6 +310,75 @@ mod tests {
                 Status::Resting
             ]
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn mcp_endpoint_speaks_json_rpc() {
+        struct T;
+        impl crate::mcp::Tools for T {
+            fn list(&self, caller: &str) -> Value {
+                json!([{ "caller": caller }])
+            }
+            fn send(&self, _: &str, t: &str, m: &str) -> std::result::Result<String, String> {
+                Ok(format!("{t}<-{m}"))
+            }
+            fn read(&self, _: &str, _: &str, _: usize) -> std::result::Result<String, String> {
+                Ok(String::new())
+            }
+            fn spawn(
+                &self,
+                _: &str,
+                _: &str,
+                _: &str,
+                _: &str,
+            ) -> std::result::Result<String, String> {
+                Ok(String::new())
+            }
+        }
+        let srv = HookServer::start(Arc::new(|_, _, _| {})).await.unwrap();
+        let (url, token) = (format!("{}/mcp/lead", srv.url()), srv.token.clone());
+        let before = tokio::task::spawn_blocking({
+            let (url, token) = (url.clone(), token.clone());
+            move || {
+                let a = ureq::Agent::config_builder()
+                    .http_status_as_error(false)
+                    .build()
+                    .new_agent();
+                a.post(&url)
+                    .header(TOKEN_HEADER, &token)
+                    .send("{}")
+                    .unwrap()
+                    .status()
+                    .as_u16()
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(before, 503, "no tools installed yet");
+        srv.set_tools(Arc::new(T));
+        let (call, notif, bad) = tokio::task::spawn_blocking(move || {
+            let a = ureq::Agent::config_builder().http_status_as_error(false).build().new_agent();
+            let mut r = a
+                .post(&url)
+                .header(TOKEN_HEADER, &token)
+                .send(r#"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"send_to_console","arguments":{"target":"api","message":"go"}}}"#)
+                .unwrap();
+            let v: Value = r.body_mut().read_json().unwrap();
+            let n = a
+                .post(&url)
+                .header(TOKEN_HEADER, &token)
+                .send(r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
+                .unwrap()
+                .status()
+                .as_u16();
+            let b = a.post(&url).header(TOKEN_HEADER, "x").send("{}").unwrap().status().as_u16();
+            (v, n, b)
+        })
+        .await
+        .unwrap();
+        assert_eq!(call["id"], 7);
+        assert_eq!(call["result"]["content"][0]["text"], "api<-go");
+        assert_eq!((notif, bad), (202, 401));
     }
 
     #[test]

@@ -3,7 +3,10 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
+  AccountUsage,
   AgentKind,
+  KeyStatus,
+  ProviderPreset,
   Board,
   Detected,
   GitAction,
@@ -26,6 +29,10 @@ export interface SpawnArgs {
   resume: boolean;
   /** run the CLI's own login flow instead of the agent */
   login?: boolean;
+  /** account / provider profile id */
+  profile?: string;
+  /** orchestrator lead (Claude) */
+  lead?: boolean;
 }
 
 export interface LoadedSettings {
@@ -59,6 +66,13 @@ export const ipc = {
     invoke<RoutePlan>("route_instruction", { instruction, consoles }),
   loopGoalCheck: (id: string, title: string, goal: string) =>
     invoke<GoalVerdict>("loop_goal_check", { id, title, goal }),
+  providerPresets: () => invoke<ProviderPreset[]>("provider_presets"),
+  profileKeyStatus: () => invoke<KeyStatus[]>("profile_key_status"),
+  setProfileKey: (id: string, key: string) => invoke<void>("set_profile_key", { id, key }),
+  deleteProfileKey: (id: string) => invoke<void>("delete_profile_key", { id }),
+  syncRoster: (roster: { id: string; title: string; agent: string; group?: string }[]) =>
+    invoke<void>("sync_roster", { roster }),
+  usageAll: () => invoke<AccountUsage[]>("usage_all"),
   gitStatus: (cwd: string) => invoke<GitStatus>("git_status", { cwd }),
   gitRun: (cwd: string, action: GitAction, message = "") => invoke<string>("git_run", { cwd, action, message }),
 };
@@ -68,6 +82,10 @@ export const events = {
     listen<{ id: string; status: Status }>("console://status", (e) => cb(e.payload)),
   onExit: (cb: (p: { id: string; code: number | null }) => void): Promise<UnlistenFn> =>
     listen<{ id: string; code: number | null }>("console://exit", (e) => cb(e.payload)),
+  onOrchestratorSpawn: (cb: (p: { from: string; agent: string; title: string; task: string }) => void): Promise<UnlistenFn> =>
+    listen<{ from: string; agent: string; title: string; task: string }>("orchestrator://spawn", (e) => cb(e.payload)),
+  onOrchestratorSent: (cb: (p: { from: string; to: string }) => void): Promise<UnlistenFn> =>
+    listen<{ from: string; to: string }>("orchestrator://sent", (e) => cb(e.payload)),
   /** every Claude hook call (diagnostics + session-id tracking) */
   onHook: (
     cb: (p: { id: string; event: string; session: string | null }) => void,

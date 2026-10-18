@@ -5,6 +5,7 @@ import type { AgentKind, AuthInfo, Detected, Settings } from "../../lib/types";
 import { activeWorkspace, CONSOLE_H, CONSOLE_W, nextPosition, useBoard } from "../../store/board";
 import { clampFont, formatArgs, parseArgs } from "./args";
 import { AgentIcon } from "../../components/AgentIcon";
+import { ProfilesSection } from "./ProfilesSection";
 import "./settings.css";
 
 type AgentChoice = "claudeCode" | "codex" | "shell";
@@ -189,11 +190,12 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
     if (typeof dir === "string") patch({ defaultCwd: dir });
   };
 
-  const login = async (agent: "claudeCode" | "codex") => {
+  const login = async (agent: "claudeCode" | "codex", profile?: string, profileName?: string) => {
+    await flush(); // the backend must know a just-added profile before spawning with it
     const st = useBoard.getState();
     const a: AgentKind = { kind: agent };
     const id = await ipc.newId();
-    const title = agent === "claudeCode" ? "claude login" : "codex login";
+    const title = `${agent === "claudeCode" ? "claude" : "codex"} login${profileName ? ` · ${profileName}` : ""}`;
     st.addConsoles([
       {
         id,
@@ -203,9 +205,10 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         ...nextPosition(activeWorkspace(st.board).consoles),
         width: CONSOLE_W,
         height: CONSOLE_H,
+        profile,
       },
     ]);
-    await ipc.spawn({ id, agent: a, cwd: "", cols: 100, rows: 30, resume: false, login: true });
+    await ipc.spawn({ id, agent: a, cwd: "", cols: 100, rows: 30, resume: false, login: true, profile });
     useBoard.getState().setRuntime(id, { running: true });
     onClose();
   };
@@ -330,8 +333,21 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
               onLogin={() => void login("codex")}
             />
             <p className="help">
-              Agent Board never stores tokens or passwords. Signing in opens a console that runs the CLI's own login
+              Agent Board never stores OAuth tokens or passwords. Signing in opens a console that runs the CLI's own login
               flow; credentials stay with the CLI.
+            </p>
+          </section>
+
+          <section className="set-section">
+            <h3>More accounts &amp; providers</h3>
+            <ProfilesSection
+              profiles={draft.profiles ?? []}
+              onChange={(profiles) => patch({ profiles })}
+              onLogin={(p) => void login(p.cli === "claude" ? "claudeCode" : "codex", p.id, p.name)}
+            />
+            <p className="help">
+              Provider API keys are kept in the Windows Credential Manager, never in Agent Board files. Each account gets
+              its own config folder, so logins and histories never mix.
             </p>
           </section>
 

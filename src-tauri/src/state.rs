@@ -16,6 +16,8 @@ pub struct AppState {
     pub pty: Arc<PtyManager<TauriEvents>>,
     pub hooks: HookServer,
     pub data_dir: PathBuf,
+    pub keys: Box<dyn board_core::profiles::KeyStore>,
+    pub tools: Arc<crate::orchestrator::BoardTools>,
 }
 
 impl AppState {

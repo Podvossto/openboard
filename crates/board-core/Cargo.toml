@@ -14,10 +14,20 @@ uuid.workspace = true
 tracing.workspace = true
 tokio.workspace = true
 axum.workspace = true
-ureq.workspace = true
 portable-pty.workspace = true
 parking_lot.workspace = true
 which.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+# Windows: system TLS (schannel) — no C toolchain needed
+ureq = { workspace = true, features = ["native-tls"] }
+keyring = { workspace = true, features = ["windows-native"] }
+
+[target.'cfg(not(windows))'.dependencies]
+ureq = { workspace = true, features = ["rustls"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { workspace = true, features = ["apple-native"] }
 
 [dev-dependencies]
 tempfile.workspace = true

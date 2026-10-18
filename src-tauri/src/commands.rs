@@ -7,6 +7,7 @@ use std::process::{Command, Stdio};
 use board_core::agents::{self, launch_spec, AuthInfo, LaunchSpec, Mode};
 use board_core::hooks::{claude_settings, hook_command};
 use board_core::model::{AgentKind, Board};
+use board_core::profiles::{self, Profile};
 use board_core::pty::SpawnRequest;
 use board_core::settings::{home_dir, Settings};
 use board_core::status::Status;
@@ -96,6 +97,12 @@ pub struct SpawnArgs {
     /// Run the CLI's login flow instead of the agent.
     #[serde(default)]
     login: bool,
+    /// Profile id (account / provider) — None = the CLI's default login.
+    #[serde(default)]
+    profile: Option<String>,
+    /// Orchestrator lead: gets the agent-board MCP tools + lead instructions (Claude only).
+    #[serde(default)]
+    lead: bool,
 }
 
 #[tauri::command]
@@ -123,6 +130,40 @@ pub fn spawn_console(state: State<'_, AppState>, args: SpawnArgs) -> Result<()> 
         },
         a => a.clone(),
     };
+    let profile = match args.profile.as_deref().filter(|p| !p.is_empty()) {
+        Some(pid) => {
+            let p = settings
+                .profiles
+                .iter()
+                .find(|p| p.id == pid)
+                .cloned()
+                .ok_or_else(|| Error::Pty(format!("profile {pid} no longer exists")))?;
+            if !profiles::compatible(&p, &agent) {
+                return Err(Error::Pty(format!(
+                    "profile \"{}\" is not for this CLI",
+                    p.name
+                )));
+            }
+            Some(p)
+        }
+        None => None,
+    };
+    let mut env = state.hooks.env_for(&args.id);
+    if let Some(p) = &profile {
+        let key = if profiles::needs_key(p) {
+            Some(state.keys.get(&p.id).ok_or_else(|| {
+                Error::Pty(format!(
+                    "no API key saved for \"{}\" — add it in Settings → Accounts",
+                    p.name
+                ))
+            })?)
+        } else {
+            None
+        };
+        let dir = profiles::config_dir(&state.data_dir, p);
+        std::fs::create_dir_all(&dir)?;
+        env.extend(profiles::env_for(p, &state.data_dir, key.as_deref()));
+    }
     let hooks = agent.supports_hooks() && !args.login;
     let spec = if args.login {
         agents::login_spec(&agent)
@@ -140,6 +181,23 @@ pub fn spawn_console(state: State<'_, AppState>, args: SpawnArgs) -> Result<()> 
             Mode::Fresh { session }
         };
         let mut spec = launch_spec(&agent, mode, settings_file.as_deref());
+        if args.lead && matches!(agent, AgentKind::ClaudeCode) {
+            let cfg = board_core::mcp::claude_mcp_config(
+                &state.hooks.url(),
+                &state.hooks.token,
+                &args.id,
+            );
+            let path = state.data_dir.join(format!("mcp-{}.json", args.id));
+            std::fs::write(&path, serde_json::to_vec(&cfg)?)?;
+            spec.args.extend([
+                "--mcp-config".into(),
+                path.display().to_string(),
+                "--allowedTools".into(),
+                "mcp__agent-board__list_consoles,mcp__agent-board__read_console,mcp__agent-board__send_to_console,mcp__agent-board__spawn_console".into(),
+                "--append-system-prompt".into(),
+                board_core::mcp::LEAD_PROMPT.into(),
+            ]);
+        }
         match agent {
             AgentKind::ClaudeCode => spec.args.extend(settings.claude_args.iter().cloned()),
             AgentKind::Codex => spec.args.extend(settings.codex_args.iter().cloned()),
@@ -149,7 +207,7 @@ pub fn spawn_console(state: State<'_, AppState>, args: SpawnArgs) -> Result<()> 
     };
     let (program, argv) = resolve_spec(spec)?;
     state.pty.spawn(SpawnRequest {
-        env: state.hooks.env_for(&args.id),
+        env,
         id: args.id,
         program,
         args: argv,
@@ -387,4 +445,138 @@ pub async fn git_run(
     tauri::async_runtime::spawn_blocking(move || board_core::git::run(&dir, action, &message))
         .await
         .map_err(|e| Error::Pty(e.to_string()))?
+}
+
+// ---------- profiles / accounts ----------
+
+#[tauri::command]
+pub fn provider_presets() -> &'static [profiles::ProviderPreset] {
+    profiles::PRESETS
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyStatus {
+    id: String,
+    has_key: bool,
+    /// "abcd…wxyz" — never the key itself
+    masked: Option<String>,
+}
+
+#[tauri::command]
+pub fn profile_key_status(state: State<'_, AppState>) -> Vec<KeyStatus> {
+    let ps = state.settings.lock().profiles.clone();
+    ps.iter()
+        .filter(|p| profiles::needs_key(p))
+        .map(|p| {
+            let k = state.keys.get(&p.id);
+            KeyStatus {
+                id: p.id.clone(),
+                has_key: k.is_some(),
+                masked: k.as_deref().map(profiles::mask),
+            }
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub fn set_profile_key(state: State<'_, AppState>, id: String, key: String) -> Result<()> {
+    let key = key.trim();
+    if key.is_empty() {
+        return Err(Error::Pty("key is empty".into()));
+    }
+    state.keys.set(&id, key)
+}
+
+#[tauri::command]
+pub fn delete_profile_key(state: State<'_, AppState>, id: String) -> Result<()> {
+    state.keys.delete(&id)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountUsage {
+    /// "default-claude" | "default-codex" | profile id
+    id: String,
+    name: String,
+    provider: String,
+    usage: Usage,
+}
+
+/// Plan usage for every account we can read: default Claude, default Codex, each profile.
+#[tauri::command]
+pub async fn usage_all(state: State<'_, AppState>) -> Result<Vec<AccountUsage>> {
+    let ps: Vec<Profile> = state.settings.lock().profiles.clone();
+    let data_dir = state.data_dir.clone();
+    let keys: Vec<(String, Option<String>)> = ps
+        .iter()
+        .map(|p| (p.id.clone(), state.keys.get(&p.id)))
+        .collect();
+    tauri::async_runtime::spawn_blocking(move || {
+        let home = home_dir().unwrap_or_default();
+        let codex_home = std::env::var_os("CODEX_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home.join(".codex"));
+        let mut out = vec![
+            AccountUsage {
+                id: "default-claude".into(),
+                name: "Claude (default)".into(),
+                provider: "anthropic".into(),
+                usage: usage::fetch_claude(&home),
+            },
+            AccountUsage {
+                id: "default-codex".into(),
+                name: "Codex (default)".into(),
+                provider: "openai".into(),
+                usage: usage::fetch_codex(&codex_home),
+            },
+        ];
+        for p in &ps {
+            let key = keys
+                .iter()
+                .find(|(id, _)| id == &p.id)
+                .and_then(|(_, k)| k.clone());
+            let (provider, u) = match (&p.kind, p.cli) {
+                (profiles::ProfileKind::Subscription, profiles::Cli::Claude) => (
+                    "anthropic".to_string(),
+                    usage::fetch_claude_dir(&profiles::config_dir(&data_dir, p)),
+                ),
+                (profiles::ProfileKind::Subscription, profiles::Cli::Codex) => (
+                    "openai".to_string(),
+                    usage::fetch_codex(&profiles::config_dir(&data_dir, p)),
+                ),
+                (profiles::ProfileKind::Provider { provider, .. }, _) => {
+                    let u = match (provider.as_str(), key) {
+                        ("zai", Some(k)) => usage::fetch_zai(&k),
+                        (_, None) => Usage {
+                            error: Some("no API key".into()),
+                            ..Default::default()
+                        },
+                        _ => Usage {
+                            error: Some("usage not available for this provider".into()),
+                            ..Default::default()
+                        },
+                    };
+                    (provider.clone(), u)
+                }
+            };
+            out.push(AccountUsage {
+                id: p.id.clone(),
+                name: p.name.clone(),
+                provider,
+                usage: u,
+            });
+        }
+        out
+    })
+    .await
+    .map_err(|e| Error::Pty(e.to_string()))
+}
+
+// ---------- orchestrator ----------
+
+/// The UI pushes the current consoles (all workspaces) so lead agents can address them.
+#[tauri::command]
+pub fn sync_roster(state: State<'_, AppState>, roster: Vec<crate::orchestrator::RosterEntry>) {
+    *state.tools.roster.lock() = roster;
 }

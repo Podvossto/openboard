@@ -7,6 +7,7 @@ import type {
   ConsoleNode,
   Group,
   HookLogEntry,
+  InkStroke,
   Preset,
   Tile,
   Settings,
@@ -14,6 +15,9 @@ import type {
   Viewport,
   Workspace,
 } from "../lib/types";
+
+/** Active drawing tool; null = normal board interaction. */
+export type InkTool = { mode: "pen" | "eraser"; color: string; width: number };
 
 export interface Runtime {
   status: Status;
@@ -34,6 +38,7 @@ export const DEFAULT_SETTINGS: Settings = {
   blinkNeedsYou: true,
   fontSize: 13,
   showUsage: true,
+  profiles: [],
 };
 
 export const CONSOLE_W = 680;
@@ -62,7 +67,7 @@ interface BoardState {
   /** console id with keyboard focus (command bar default target) */
   focused: string | null;
   /** id of console whose "…" menu / rename / settings is open */
-  ui: { settingsOpen: boolean; memoryOpen: boolean };
+  ui: { settingsOpen: boolean; memoryOpen: boolean; ink: InkTool | null };
 
   hydrate: (b: Board) => void;
   setSettings: (s: Settings, resolvedCwd: string) => void;
@@ -85,6 +90,11 @@ interface BoardState {
   patchTile: (id: string, patch: Partial<Tile>) => void;
   removeTile: (id: string) => void;
 
+  // ink (active workspace)
+  addStroke: (s: InkStroke) => void;
+  removeStrokes: (ids: string[]) => void;
+  clearInk: () => void;
+
   // groups
   addGroup: (g: Group) => void;
   patchGroup: (id: string, patch: Partial<Group>) => void;
@@ -99,6 +109,9 @@ interface BoardState {
   setRuntime: (id: string, patch: Partial<Runtime>) => void;
   pushHook: (id: string, event: string) => void;
   setFocused: (id: string | null) => void;
+  /** console ids that just received work from a lead (transient glow) */
+  pulses: Record<string, number>;
+  pulse: (id: string) => void;
   setUi: (patch: Partial<BoardState["ui"]>) => void;
 }
 
@@ -115,7 +128,7 @@ export const useBoard = create<BoardState>((set) => ({
   runtime: {},
   revision: 0,
   focused: null,
-  ui: { settingsOpen: false, memoryOpen: false },
+  ui: { settingsOpen: false, memoryOpen: false, ink: null },
 
   hydrate: (board) => set({ board, loaded: true }),
   setSettings: (settings, resolvedCwd) => set({ settings, resolvedCwd }),
@@ -190,6 +203,18 @@ export const useBoard = create<BoardState>((set) => ({
       revision: s.revision + 1,
     })),
 
+  addStroke: (st) =>
+    set((s) => ({ board: withActive(s.board, (w) => ({ ...w, ink: [...(w.ink ?? []), st] })), revision: s.revision + 1 })),
+  removeStrokes: (ids) =>
+    set((s) => {
+      const del = new Set(ids);
+      return {
+        board: withActive(s.board, (w) => ({ ...w, ink: (w.ink ?? []).filter((x) => !del.has(x.id)) })),
+        revision: s.revision + 1,
+      };
+    }),
+  clearInk: () => set((s) => ({ board: withActive(s.board, (w) => ({ ...w, ink: [] })), revision: s.revision + 1 })),
+
   addGroup: (g) =>
     set((s) => ({ board: withActive(s.board, (w) => ({ ...w, groups: [...w.groups, g] })), revision: s.revision + 1 })),
   patchGroup: (id, patch) =>
@@ -234,6 +259,12 @@ export const useBoard = create<BoardState>((set) => ({
       return { runtime: { ...s.runtime, [id]: { ...prev, hooks } } };
     }),
   setFocused: (focused) => set({ focused }),
+  pulses: {},
+  pulse: (id) => {
+    const at = Date.now();
+    set((s) => ({ pulses: { ...s.pulses, [id]: at } }));
+    setTimeout(() => set((s) => (s.pulses[id] === at ? { pulses: { ...s.pulses, [id]: 0 } } : s)), 2400);
+  },
   setUi: (patch) => set((s) => ({ ui: { ...s.ui, ...patch } })),
 }));
 

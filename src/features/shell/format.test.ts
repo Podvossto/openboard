@@ -47,3 +47,10 @@ describe("workspaces", () => {
     expect(nextInCycle([], "a")).toBeNull();
   });
 });
+
+describe("formatReset epoch-ms", () => {
+  it("accepts epoch milliseconds as a string", () => {
+    const now = 1_760_000_000_000;
+    expect(formatReset({ percent: 1, resetsAt: String(now + 90 * 60_000) }, now)).toBe("resets in 1h 30m");
+  });
+});

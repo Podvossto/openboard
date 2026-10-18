@@ -28,6 +28,11 @@
 @media (prefers-reduced-motion: reduce) {
   .console.attention { animation: none; box-shadow: 0 0 0 2px rgb(255 181 71 / 0.6), 0 0 36px -4px rgb(255 181 71 / 0.7); }
 }
+.console.pulsing:not(.attention) { animation: lead-pulse 1.2s ease-out 2; }
+@keyframes lead-pulse {
+  0% { box-shadow: 0 0 0 0 rgb(255 181 71 / 0.55), 0 24px 60px -24px rgb(0 0 0 / 0.85); }
+  100% { box-shadow: 0 0 0 14px rgb(255 181 71 / 0), 0 24px 60px -24px rgb(0 0 0 / 0.85); }
+}
 .console-header { border-radius: 17px 17px 0 0; border-bottom: 1px solid var(--color-line); user-select: none; }
 .status-dot.working { animation: dot-pulse 1.4s ease-in-out infinite; }
 @keyframes dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }

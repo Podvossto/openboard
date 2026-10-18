@@ -14,6 +14,8 @@ import { STATUS_COLOR } from "../console/statusStyle";
 import { persistableChanges, reconcile, type AppNode } from "./nodes";
 import { GroupNodeView } from "./GroupNodeView";
 import { ZoomControl } from "./ZoomControl";
+import { InkCapture, InkStrokes } from "../ink/InkLayer";
+import { InkToolbar } from "../ink/InkToolbar";
 import { TileNodeView } from "../tiles/TileNodeView";
 import type { Tile } from "../../lib/types";
 import "./board.css";
@@ -32,6 +34,7 @@ function WorkspaceCanvas() {
   const groups = useBoard((s) => activeWorkspace(s.board).groups);
   const tiles = useBoard((s) => activeWorkspace(s.board).tiles ?? NO_TILES);
   const runtime = useBoard((s) => s.runtime);
+  const inking = useBoard((s) => !!s.ui.ink);
   // viewport is only read on mount (defaultViewport) — later changes come from the canvas itself
   const [initialViewport] = useState(() => activeWorkspace(useBoard.getState().board).viewport);
   const [nodes, setNodes] = useState<AppNode[]>(() => reconcile(consoles, groups, [], tiles));
@@ -71,6 +74,8 @@ function WorkspaceCanvas() {
       minZoom={0.15}
       maxZoom={2}
       panOnScroll
+      panOnDrag={!inking}
+      nodesDraggable={!inking}
       zoomOnScroll={false}
       zoomActivationKeyCode="Control"
       deleteKeyCode={null}
@@ -92,6 +97,9 @@ function WorkspaceCanvas() {
           return STATUS_COLOR[r?.running ? r.status : "exited"];
         }}
       />
+      <InkStrokes />
+      <InkCapture />
+      <InkToolbar />
       <ZoomControl />
     </ReactFlow>
   );

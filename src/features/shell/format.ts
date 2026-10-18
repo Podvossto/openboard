@@ -14,15 +14,16 @@ export function usageLevel(u: Pick<Usage, "session" | "weekly">): UsageLevel {
   return m < 60 ? "ok" : m < 85 ? "warn" : "danger";
 }
 
-export function usageLabel(u: Pick<Usage, "session" | "weekly">): string {
-  const parts = [`Claude ${u.session ? `${pct(u.session.percent)}%` : "—"}`];
+export function usageLabel(u: Pick<Usage, "session" | "weekly">, name = "Claude"): string {
+  const parts = [`${name} ${u.session ? `${pct(u.session.percent)}%` : "—"}`];
   if (u.weekly) parts.push(`${pct(u.weekly.percent)}% wk`);
   return parts.join(" · ");
 }
 
 export function formatReset(w: UsageWindow | null, now = Date.now()): string {
   if (!w || !w.resetsAt) return "reset unknown";
-  const t = Date.parse(w.resetsAt);
+  // ISO (Claude) or epoch-ms digits (Z.ai, Codex)
+  const t = /^\d{10,}$/.test(w.resetsAt) ? Number(w.resetsAt) : Date.parse(w.resetsAt);
   if (Number.isNaN(t)) return "reset unknown";
   const mins = Math.round((t - now) / 60000);
   if (mins <= 0) return "resets now";

@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { ipc } from "../../lib/ipc";
-import type { Usage, Workspace } from "../../lib/types";
+import type { AccountUsage, Usage, Workspace } from "../../lib/types";
+import { useDismiss } from "../dock/useDismiss";
 import { activeWorkspace, statusCounts, useBoard } from "../../store/board";
-import { cleanName, nextInCycle, nextWorkspaceName, pct, usageLabel, usageLevel, usageTooltip } from "./format";
+import { cleanName, formatReset, nextInCycle, nextWorkspaceName, pct, usageLabel, usageLevel, usageTooltip } from "./format";
 
 
 const USAGE_POLL_MS = 5 * 60 * 1000;
@@ -98,16 +99,37 @@ function Tab({ ws, active, canRemove }: { ws: Workspace; active: boolean; canRem
   );
 }
 
+const PROVIDER_DOT: Record<string, string> = { anthropic: "#e8784b", openai: "#8aa4ff", zai: "#4fd1a1" };
+
+function UsageBars({ u, color }: { u: Usage; color: string }) {
+  return (
+    <span className="flex w-9 flex-col gap-[3px]" aria-hidden="true">
+      {[u.session?.percent, u.weekly?.percent].map((v, i) => (
+        <span key={i} className="h-[3px] overflow-hidden rounded-full bg-surface-3">
+          <i className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${pct(v)}%`, background: color }} />
+        </span>
+      ))}
+    </span>
+  );
+}
+
+const RING: Record<"danger" | "warn" | "ok" | "idle", [string, string]> = { danger: ["#ff6b6b", "#ff9b6b"], warn: ["#ffb547", "#f2d45a"], ok: ["#4fd1a1", "#56d8c9"], idle: ["#6a6b78", "#6a6b78"] };
+
+/** Top-bar usage pill (default Claude) + popover with every account (Claude, Codex, Z.ai, extra logins). */
 function UsagePill() {
-  const [usage, setUsage] = useState<Usage | null>(null);
+  const [all, setAll] = useState<AccountUsage[] | null>(null);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  useDismiss(open, ref, close);
 
   useEffect(() => {
     let alive = true;
     const load = () =>
       ipc
-        .claudeUsage()
-        .then((u) => alive && setUsage(u))
-        .catch((e) => alive && setUsage({ session: null, weekly: null, error: String(e) }));
+        .usageAll()
+        .then((u) => alive && setAll(u))
+        .catch(() => alive && setAll([]));
     load();
     const t = setInterval(load, USAGE_POLL_MS);
     return () => {
@@ -116,34 +138,70 @@ function UsagePill() {
     };
   }, []);
 
-  if (!usage || usage.error === "not logged in") return null;
-  const level = usage.error ? "idle" : usageLevel(usage);
-  const ring =
-    level === "danger" ? ["#ff6b6b", "#ff9b6b"] : level === "warn" ? ["#ffb547", "#f2d45a"] : level === "ok" ? ["#4fd1a1", "#56d8c9"] : ["#6a6b78", "#6a6b78"];
+  if (!all) return null;
+  const readable = all.filter((a) => !a.usage.error);
+  const main = all.find((a) => a.id === "default-claude" && !a.usage.error) ?? readable[0];
+  if (!main) return null;
+  const level = usageLevel(main.usage);
+  const ring = RING[level];
   return (
-    <span
-      className="usage-pill ring-pill !h-8 !cursor-default !gap-2.5 !px-3 !text-[12px]"
-      style={{ ["--ring-a" as string]: ring[0], ["--ring-b" as string]: ring[1] }}
-      title={usageTooltip(usage)}
-    >
-      <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="#e8784b" /></svg>
-      {usage.error ? (
-        <span className="text-ink-2">Claude —</span>
-      ) : (
-        <>
-          <span className="flex w-9 flex-col gap-[3px]" aria-hidden="true">
-            {[usage.session?.percent, usage.weekly?.percent].map((v, i) => (
-              <span key={i} className="h-[3px] overflow-hidden rounded-full bg-surface-3">
-                <i className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${pct(v)}%`, background: ring[0] }} />
-              </span>
-            ))}
-          </span>
-          <span className="tabular-nums text-ink">{usageLabel(usage)}</span>
-        </>
+    <div className="relative" ref={ref}>
+      <button
+        className="usage-pill ring-pill !h-8 !gap-2.5 !px-3 !text-[12px]"
+        style={{ ["--ring-a" as string]: ring[0], ["--ring-b" as string]: ring[1] }}
+        title={usageTooltip(main.usage)}
+        aria-expanded={open}
+        aria-label="Usage"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="size-2 rounded-full" style={{ background: PROVIDER_DOT[main.provider] ?? "#a9aab6" }} />
+        <UsageBars u={main.usage} color={ring[0]} />
+        <span className="tabular-nums text-ink">{usageLabel(main.usage, shortName(main))}</span>
+        {readable.length > 1 && <span className="rounded-full bg-surface-3 px-1.5 text-[10.5px] text-ink-2">+{readable.length - 1}</span>}
+      </button>
+      {open && (
+        <div role="dialog" aria-label="Usage by account" className="glass animate-pop absolute right-0 top-[calc(100%+8px)] z-50 w-[340px] rounded-2xl p-2">
+          <div className="px-2.5 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-3">Plan usage</div>
+          {all.map((a) => {
+            const lv = a.usage.error ? "idle" : usageLevel(a.usage);
+            const c = RING[lv][0];
+            return (
+              <div key={a.id} className="rounded-xl px-2.5 py-2 hover:bg-surface-2/70">
+                <div className="flex items-center gap-2">
+                  <span className="size-2 rounded-full" style={{ background: PROVIDER_DOT[a.provider] ?? "#a9aab6" }} />
+                  <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink">{a.name}</span>
+                  {a.usage.error && <span className="truncate text-[11.5px] text-ink-3">{a.usage.error}</span>}
+                </div>
+                {!a.usage.error && (
+                  <div className="mt-1.5 grid grid-cols-2 gap-3 pl-4">
+                    {(["session", "weekly"] as const).map((k) => {
+                      const w = a.usage[k];
+                      return (
+                        <div key={k}>
+                          <div className="flex items-baseline justify-between text-[11px]">
+                            <span className="text-ink-3">{k === "session" ? "5-hour" : "Weekly"}</span>
+                            <span className="font-semibold tabular-nums text-ink">{w ? `${pct(w.percent)}%` : "—"}</span>
+                          </div>
+                          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-3">
+                            <i className="block h-full rounded-full" style={{ width: `${pct(w?.percent)}%`, background: c }} />
+                          </div>
+                          <div className="mt-0.5 text-[10.5px] text-ink-3">{formatReset(w)}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
-    </span>
+    </div>
   );
 }
+
+const shortName = (a: AccountUsage) =>
+  a.id === "default-claude" ? "Claude" : a.id === "default-codex" ? "Codex" : a.name.split(/[ ·(]/)[0] || a.name;
 
 export function TopBar() {
   const board = useBoard((s) => s.board);
@@ -187,7 +245,7 @@ export function TopBar() {
           hot
             ? "cursor-pointer border-warn/50 bg-warn/10 text-warn shadow-[0_0_18px_-6px_var(--color-warn)] hover:bg-warn/20 [animation:needs-pulse_2s_ease-in-out_infinite]"
             : n === 0
-              ? "zero border-line text-ink-3"
+              ? "zero border-line/70 text-ink-3 opacity-60"
               : "border-line bg-surface-2 text-ink"
         }`}
         title={onClick ? `${n} need you — click to jump to the next` : `${n} ${label}`}
@@ -231,18 +289,7 @@ export function TopBar() {
         {pill("needsYou", counts.needsYou, "need you", counts.needsYou > 0 ? jumpNext : undefined)}
         {pill("resting", counts.resting, "resting")}
         {showUsage && <UsagePill />}
-        <button
-          className="grid size-9 place-items-center rounded-full border border-line text-ink-2 transition hover:border-line-strong hover:bg-surface-2 hover:text-ink active:scale-95"
-          title="Settings"
-          aria-label="Settings"
-          onClick={() => useBoard.getState().setUi({ settingsOpen: true })}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-            <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
-            <circle cx="16" cy="7" r="2" />
-            <circle cx="8" cy="17" r="2" />
-          </svg>
-        </button>
+
       </div>
     </header>
   );

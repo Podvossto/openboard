@@ -47,6 +47,9 @@ pub struct Workspace {
     /// Non-console tiles: notes, checklists, kanban, web previews, git cards.
     #[serde(default)]
     pub tiles: Vec<Tile>,
+    /// Freehand ink strokes in board coordinates (frontend-owned shape).
+    #[serde(default)]
+    pub ink: Vec<serde_json::Value>,
 }
 
 impl Workspace {
@@ -59,6 +62,7 @@ impl Workspace {
             groups: vec![],
             memory: String::new(),
             tiles: vec![],
+            ink: vec![],
         }
     }
 }
@@ -140,6 +144,12 @@ pub struct ConsoleNode {
     /// Agent-side session id used for resume (Claude: the `--session-id` we assigned).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_session: Option<String>,
+    /// Profile id (account / provider). None → the CLI's default login.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    /// Orchestrator lead (Claude only): started with the agent-board MCP tools.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub lead: bool,
     /// Automation loop config (frontend-owned shape, see src/features/loops).
     #[serde(rename = "loop", default, skip_serializing_if = "Option::is_none")]
     pub loop_cfg: Option<serde_json::Value>,

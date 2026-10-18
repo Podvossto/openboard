@@ -28,8 +28,9 @@
   --font: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
   --mono: "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
   font-family: var(--font);
-  font-size: 13px;
+  /* keep the root at 16px so Tailwind's rem scale (h-8 = 32px …) matches the px-based components */
 }
+body { font-size: 13px; }
 
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden; }
@@ -57,18 +58,7 @@ html, body, #root { margin: 0; height: 100%; background: var(--bg); color: var(-
 .btn.sm.icon { width: 24px; padding: 0; }
 
 /* ---------- pills ---------- */
-.pill {
-  display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px;
-  border-radius: var(--r-pill); background: var(--surface-2); border: 1px solid var(--border);
-  color: var(--text-2); font-size: 12px; font-weight: 500; white-space: nowrap;
-  transition: all var(--dur-2) var(--ease);
-}
-.pill .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.pill.working { color: var(--info); }
-.pill.resting { color: var(--ok); }
-.pill.needsYou { color: var(--warn); background: rgba(255, 181, 71, 0.1); border-color: rgba(255, 181, 71, 0.35); }
-.pill.exited, .pill.starting { color: var(--text-3); }
-.pill.zero { opacity: 0.45; }
+/* status pills are styled with Tailwind (TopBar, ConsoleNodeView) */
 
 .kbd {
   font-family: var(--mono); font-size: 11px; padding: 1px 5px; border-radius: 4px;

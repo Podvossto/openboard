@@ -42,6 +42,8 @@ export const ConsoleNodeView = memo(function ConsoleNodeView({ data, selected }:
   const cwdText = c.cwd ? shortPath(c.cwd) : shortPath(resolvedCwd);
   const attention = status === "needsYou" && blink;
 
+  const pulsing = useBoard((s) => (s.pulses[c.id] ?? 0) > 0);
+  const profile = useBoard((s) => (c.profile ? s.settings.profiles?.find((p) => p.id === c.profile) : undefined));
   const tint =
     c.agent.kind === "claudeCode" ? "var(--color-claude)" : c.agent.kind === "codex" ? "var(--color-codex)" : "var(--color-ink-3)";
   const statusTone: Record<string, string> = {
@@ -54,7 +56,7 @@ export const ConsoleNodeView = memo(function ConsoleNodeView({ data, selected }:
 
   return (
     <div
-      className={`console group/console${selected ? " selected" : ""}${attention ? " attention" : ""}`}
+      className={`console group/console${selected ? " selected" : ""}${attention ? " attention" : ""}${pulsing ? " pulsing" : ""}`}
       style={{ ["--tint" as string]: tint }}
     >
       <NodeResizer isVisible={selected} minWidth={360} minHeight={220} lineClassName="!border-accent/40" handleClassName="!size-2.5 !rounded-full !border-0 !bg-accent" />
@@ -85,6 +87,25 @@ export const ConsoleNodeView = memo(function ConsoleNodeView({ data, selected }:
         >
           {cwdText}
         </span>
+        {c.lead && (
+          <span
+            className="flex h-6 shrink-0 items-center gap-1 rounded-full border border-warn/45 bg-warn/10 px-2 text-[11px] font-bold uppercase tracking-[0.06em] text-warn"
+            title="Orchestrator lead — can list, message, read and spawn other consoles"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 18h18l-2-10-4.5 4L12 5l-2.5 7L5 8z" /></svg>
+            Lead
+          </span>
+        )}
+        {profile && (
+          <span
+            className="flex h-6 max-w-28 shrink-0 items-center gap-1.5 truncate rounded-full border px-2 text-[11px] font-semibold"
+            style={{ borderColor: `color-mix(in srgb, ${profile.color} 45%, transparent)`, color: profile.color }}
+            title={`Account: ${profile.name}`}
+          >
+            <span className="size-1.5 shrink-0 rounded-full" style={{ background: profile.color }} />
+            <span className="truncate">{profile.name}</span>
+          </span>
+        )}
         {c.loop?.enabled && (
           <span
             className="flex h-6 shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 text-[11px] font-semibold text-accent"

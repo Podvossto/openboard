@@ -141,6 +141,8 @@ export function TerminalView({ console: c }: { console: ConsoleNode }) {
           rows: t?.rows ?? 24,
           agentSession,
           resume,
+          profile: node.profile,
+          lead: node.lead,
         });
         if (await attach()) {
           setPhase("live");

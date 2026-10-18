@@ -5,6 +5,7 @@ import { addTile } from "../tiles/addTile";
 import { TILE_META } from "../tiles/logic";
 import { TileIcon } from "../tiles/TileIcon";
 import { useDismiss } from "../dock/useDismiss";
+import { DEFAULT_PEN } from "../ink/InkToolbar";
 import type { TileKind } from "../../lib/types";
 
 const KINDS: { kind: TileKind; hint: string }[] = [
@@ -84,6 +85,16 @@ function RailButton({
   );
 }
 
+function InkButton() {
+  const on = useBoard((s) => !!s.ui.ink);
+  return (
+    <RailButton label="Draw" active={on} onClick={() => useBoard.getState().setUi({ ink: on ? null : DEFAULT_PEN })}>
+      <path d="M4 20l4-1 11-11-3-3L5 16z" />
+      <path d="M14 6l3 3" />
+    </RailButton>
+  );
+}
+
 export function Rail() {
   const { fitView } = useReactFlow();
   const memoryOpen = useBoard((s) => s.ui.memoryOpen);
@@ -99,6 +110,7 @@ export function Rail() {
         <rect x="13" y="10" width="8" height="11" rx="2" />
       </RailButton>
       <AddTileButton />
+      <InkButton />
       <RailButton label="Memory" active={memoryOpen} onClick={() => setUi({ memoryOpen: true })}>
         <path d="M6 3h9l4 4v14H6z" />
         <path d="M14 3v5h5M9 13h7M9 17h5" />

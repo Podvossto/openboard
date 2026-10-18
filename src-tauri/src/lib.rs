@@ -1,5 +1,6 @@
 mod commands;
 mod events;
+mod orchestrator;
 mod state;
 
 use std::sync::Arc;
@@ -52,6 +53,13 @@ pub fn run() {
                 },
             )))?;
 
+            let tools = Arc::new(orchestrator::BoardTools {
+                roster: Mutex::new(vec![]),
+                pty: pty.clone(),
+                app: handle.clone(),
+            });
+            hooks.set_tools(tools.clone());
+
             app.manage(AppState {
                 store: Mutex::new(store),
                 settings_store,
@@ -59,6 +67,8 @@ pub fn run() {
                 pty,
                 hooks,
                 data_dir,
+                keys: Box::new(board_core::profiles::OsKeyStore),
+                tools,
             });
             Ok(())
         })
@@ -82,6 +92,12 @@ pub fn run() {
             commands::git_status,
             commands::git_run,
             commands::loop_goal_check,
+            commands::provider_presets,
+            commands::profile_key_status,
+            commands::set_profile_key,
+            commands::delete_profile_key,
+            commands::usage_all,
+            commands::sync_roster,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Agent Board")

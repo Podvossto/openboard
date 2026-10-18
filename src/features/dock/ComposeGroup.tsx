@@ -30,14 +30,16 @@ const MIN = 1;
 const MAX = 12;
 
 /** Pure: members for a compose request (unit-tested). */
-export function composeMembers(role: RoleId, kinds: AgentKind["kind"][]) {
+export function composeMembers(role: RoleId, kinds: AgentKind["kind"][], orchestrated = false) {
   const counts: Record<string, number> = {};
-  return kinds.map((k) => {
+  const workers = kinds.map((k) => {
     const choice = AGENT_CHOICES.find((a) => a.kind === k)!;
     const base = role === "general" ? choice.label.toLowerCase() : role;
     counts[base] = (counts[base] ?? 0) + 1;
-    return { title: `${base}-${counts[base]}`, agent: choice.agent };
+    return { title: `${base}-${counts[base]}`, agent: choice.agent } as { title: string; agent: AgentKind; lead?: boolean };
   });
+  // orchestrated: an extra Claude lead first, that drives the workers through MCP tools
+  return orchestrated ? [{ title: "lead", agent: { kind: "claudeCode" } as AgentKind, lead: true }, ...workers] : workers;
 }
 
 export function ComposeGroup({
@@ -45,8 +47,9 @@ export function ComposeGroup({
   onSpawn,
 }: {
   onBack: () => void;
-  onSpawn: (name: string, members: { title: string; agent: AgentKind }[]) => void;
+  onSpawn: (name: string, members: { title: string; agent: AgentKind; lead?: boolean }[]) => void;
 }) {
+  const [orchestrated, setOrchestrated] = useState(false);
   const [name, setName] = useState("Team");
   const [role, setRole] = useState<RoleId>("general");
   const [kinds, setKinds] = useState<AgentKind["kind"][]>(() => Array(4).fill("claudeCode"));
@@ -82,7 +85,7 @@ export function ComposeGroup({
       <label className="mb-3 flex h-10 items-center gap-2.5 rounded-xl border border-line bg-bg/60 px-3 transition focus-within:border-accent/70">
         <span className="size-2 shrink-0 rounded-full" style={{ background: roleColor }} />
         <input
-          className="w-full bg-transparent text-[15px] font-semibold outline-none placeholder:text-ink-3"
+          className="w-full bg-transparent text-[15px] font-semibold outline-none focus-visible:outline-none placeholder:text-ink-3"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Group name"
@@ -150,6 +153,20 @@ export function ComposeGroup({
         })}
       </div>
 
+      <label className="mb-3 flex cursor-pointer items-center gap-2.5 rounded-xl border border-line bg-bg/40 px-3 py-2 transition hover:border-line-strong">
+        <input
+          type="checkbox"
+          className="size-4 accent-[#ffb547]"
+          checked={orchestrated}
+          onChange={(e) => setOrchestrated(e.target.checked)}
+          aria-label="Add an orchestrator lead"
+        />
+        <span className="flex flex-col">
+          <span className="text-[12.5px] font-semibold text-ink">Add orchestrator lead</span>
+          <span className="text-[11px] text-ink-3">A Claude lead that splits the goal and delegates to these agents</span>
+        </span>
+      </label>
+
       <footer className="flex items-center gap-2">
         <button className="grid size-7 place-items-center rounded-full text-ink-2 transition hover:bg-surface-3 hover:text-ink disabled:opacity-30" onClick={() => resize(kinds.length - 1)} disabled={kinds.length <= MIN} aria-label="Fewer">
           −
@@ -160,9 +177,9 @@ export function ComposeGroup({
         </button>
         <button
           className="ml-auto h-9 rounded-full bg-ink/80 px-5 text-[13px] font-semibold text-bg transition hover:bg-ink active:scale-95"
-          onClick={() => onSpawn(name.trim() || "Team", composeMembers(role, kinds))}
+          onClick={() => onSpawn(name.trim() || "Team", composeMembers(role, kinds, orchestrated))}
         >
-          Spawn {kinds.length}
+          Spawn {kinds.length + (orchestrated ? 1 : 0)}
         </button>
       </footer>
     </div>

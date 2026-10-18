@@ -64,7 +64,7 @@ export function Dock() {
     [fitTo, say],
   );
 
-  const spawn = async (name: string, members: { title: string; agent: AgentKind }[]) => {
+  const spawn = async (name: string, members: { title: string; agent: AgentKind; lead?: boolean }[]) => {
     setMenu(null);
     try {
       const { groupId } = await spawnGroup(name, members);
@@ -174,7 +174,7 @@ export function Dock() {
       ref={root}
       role="toolbar"
       aria-label="Board dock"
-      className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex flex-col items-center gap-3 px-6"
+      className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-3 px-6 pb-4 pt-10 [background:linear-gradient(to_top,rgb(10_11_13/0.85),rgb(10_11_13/0.5)_55%,transparent)]"
     >
       {/* popovers anchor above the pill row */}
       <div className="pointer-events-auto relative flex w-full max-w-[760px] flex-col items-center gap-3">

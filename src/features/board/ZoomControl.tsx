@@ -9,7 +9,7 @@ export function ZoomControl() {
   const { zoomIn, zoomOut, zoomTo, fitView } = useReactFlow();
   const zoom = useStore(selectZoom);
   return (
-    <Panel position="bottom-right" className="zoom-control glass !mb-5 !mr-5 flex items-center gap-0.5 rounded-full p-1">
+    <Panel position="bottom-right" className="zoom-control glass !mb-4 !mr-4 flex items-center gap-0.5 rounded-full p-1">
       <button className={btn} title="Zoom out" aria-label="Zoom out" onClick={() => zoomOut({ duration: 150 })}>
         <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 7h10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>
       </button>

@@ -24,6 +24,10 @@ export interface ConsoleNode {
   agentSession?: string;
   /** automation loop (off unless enabled by the user) */
   loop?: LoopConfig;
+  /** account / provider profile id; undefined = the CLI's default login */
+  profile?: string;
+  /** orchestrator lead: gets agent-board MCP tools to drive other consoles (Claude only) */
+  lead?: boolean;
 }
 
 export type LoopTrigger =
@@ -110,6 +114,16 @@ export interface Workspace {
   memory: string;
   /** may be missing in boards saved before tiles existed */
   tiles?: Tile[];
+  /** freehand strokes, board coordinates */
+  ink?: InkStroke[];
+}
+
+export interface InkStroke {
+  id: string;
+  color: string;
+  width: number;
+  /** flat [x0, y0, x1, y1, …] in board coordinates, rounded to 0.1 */
+  points: number[];
 }
 
 export interface GitChange {
@@ -160,6 +174,43 @@ export interface Settings {
   blinkNeedsYou: boolean;
   fontSize: number;
   showUsage: boolean;
+  profiles: Profile[];
+}
+
+export type ProfileKind =
+  | { type: "subscription" }
+  | { type: "provider"; provider: string; baseUrl: string; model: string; smallModel: string };
+
+/** Extra account (own login, isolated config dir) or Anthropic-compatible provider (Z.ai …). */
+export interface Profile {
+  id: string;
+  name: string;
+  cli: "claude" | "codex";
+  kind: ProfileKind;
+  color: string;
+}
+
+export interface ProviderPreset {
+  id: string;
+  name: string;
+  baseUrl: string;
+  model: string;
+  smallModel: string;
+  keyHint: string;
+  usage: boolean;
+}
+
+export interface KeyStatus {
+  id: string;
+  hasKey: boolean;
+  masked: string | null;
+}
+
+export interface AccountUsage {
+  id: string;
+  name: string;
+  provider: string;
+  usage: Usage;
 }
 
 export interface AuthInfo {
