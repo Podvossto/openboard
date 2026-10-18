@@ -72,7 +72,7 @@ function WorkspaceCanvas() {
       proOptions={{ hideAttribution: true }}
       colorMode="dark"
     >
-      <Background variant={BackgroundVariant.Dots} gap={24} size={1} />
+      <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="#2b2c33" bgColor="#0a0b0d" />
       <MiniMap
         className="board-minimap"
         pannable

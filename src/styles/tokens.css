@@ -1,24 +1,24 @@
 /* Design tokens + shared primitives. CONTRACT — see CONTRACT.md. */
 :root {
   color-scheme: dark;
-  --bg: #0a0c10;
-  --surface: #11141a;
-  --surface-2: #171b23;
-  --surface-3: #1f2430;
-  --border: #232937;
-  --border-strong: #323a4c;
-  --text: #e3e6ee;
-  --text-2: #a4abbb;
-  --text-3: #6b7387;
-  --accent: #7c9cff;
-  --accent-soft: rgba(124, 156, 255, 0.14);
+  --bg: #0a0b0d;
+  --surface: #131418;
+  --surface-2: #1a1b20;
+  --surface-3: #23242b;
+  --border: #2a2b33;
+  --border-strong: #3a3b45;
+  --text: #ececf1;
+  --text-2: #a9aab6;
+  --text-3: #6c6d7a;
+  --accent: #8ea2ff;
+  --accent-soft: rgba(142, 162, 255, 0.14);
   --ok: #4fd1a1;
   --warn: #ffb547;
   --danger: #ff6b6b;
   --info: #6aa8ff;
   --r-sm: 6px;
   --r-md: 10px;
-  --r-lg: 14px;
+  --r-lg: 16px;
   --r-pill: 999px;
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.25);
   --shadow-2: 0 10px 40px rgba(0, 0, 0, 0.5);
@@ -47,8 +47,8 @@ html, body, #root { margin: 0; height: 100%; background: var(--bg); color: var(-
 .btn:hover:not(:disabled) { background: var(--surface-3); border-color: var(--border-strong); }
 .btn:active:not(:disabled) { transform: translateY(1px) scale(0.98); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn.primary { background: var(--accent); border-color: transparent; color: #0b1020; }
-.btn.primary:hover:not(:disabled) { background: #93adff; }
+.btn.primary { background: var(--text); border-color: transparent; color: var(--bg); border-radius: var(--r-pill); }
+.btn.primary:hover:not(:disabled) { background: #ffffff; }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
 .btn.ghost:hover:not(:disabled) { background: var(--surface-3); color: var(--text); }
 .btn.danger { color: var(--danger); }
@@ -120,7 +120,7 @@ select.input { padding-right: 24px; }
   background: var(--text-2); transition: transform var(--dur-2) var(--ease), background var(--dur-2) var(--ease);
 }
 .switch input:checked + span { background: var(--accent); border-color: transparent; }
-.switch input:checked + span::after { transform: translateX(14px); background: #0b1020; }
+.switch input:checked + span::after { transform: translateX(14px); background: #0a0b0d; }
 
 @keyframes pop { from { opacity: 0; transform: translateY(-4px) scale(0.98); } to { opacity: 1; transform: none; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }

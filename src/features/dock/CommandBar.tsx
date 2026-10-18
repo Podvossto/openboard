@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { activeWorkspace, useBoard } from "../../store/board";
 import { ipc, submit } from "../../lib/ipc";
+import { Orb } from "../../components/AgentIcon";
 import { COMMAND_FOCUS_EVENT } from "./commandBus";
 import { applySuggestion, mentionAtCaret, parseCommand, suggest, type ParseCtx } from "./parse";
 
@@ -125,35 +126,63 @@ export function CommandBar() {
     }
   };
 
+  const insertAt = () => {
+    const el = ta.current;
+    const pos = el?.selectionStart ?? text.length;
+    const pre = text.slice(0, pos);
+    const add = pre && !/\s$/.test(pre) ? " @" : "@";
+    const next = pre + add + text.slice(pos);
+    setText(next);
+    setCaret(pos + add.length);
+    setPopDismissed(false);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(pos + add.length, pos + add.length);
+    });
+  };
+
   return (
-    <div className="cmdbar">
+    <div className="relative w-full">
       {popOpen && (
-        <div className="menu cmd-pop" role="listbox" aria-label="Mentions">
+        <div role="listbox" aria-label="Mentions" className="glass animate-pop absolute bottom-[calc(100%+8px)] left-14 z-30 w-72 rounded-xl p-1.5">
           {options.map((o, i) => (
             <button
               key={`${o.kind}-${o.key}`}
               role="option"
               aria-selected={i === sel}
-              className={`menu-item ${i === sel ? "active" : ""}`}
-              onMouseDown={(e) => { e.preventDefault(); pick(i); }}
+              className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition ${i === sel ? "bg-surface-3 text-ink" : "text-ink-2"}`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                pick(i);
+              }}
               onMouseEnter={() => setSel(i)}
             >
-              <span className={`cmd-kind ${o.kind}`}>{o.kind === "all" ? "@" : o.kind === "group" ? "▦" : "›_"}</span>
-              {o.label}
-              <span className="hint">{o.hint}</span>
+              <span
+                className={`grid size-5 place-items-center rounded-md font-mono text-[11px] ${
+                  o.kind === "group" ? "bg-warn/15 text-warn" : o.kind === "all" ? "bg-accent/15 text-accent" : "bg-surface-3 text-ink-2"
+                }`}
+              >
+                {o.kind === "all" ? "@" : o.kind === "group" ? "▦" : "›"}
+              </span>
+              <span className="font-medium">{o.label}</span>
+              <span className="ml-auto text-[11px] text-ink-3">{o.hint}</span>
             </button>
           ))}
         </div>
       )}
-      <div className="cmd-input-row">
+
+      <div className="flex min-h-[60px] items-end gap-3 rounded-[22px] border border-line bg-surface-2/90 py-3 pl-3.5 pr-3 shadow-[0_20px_60px_-15px_rgb(0_0_0/0.8)] backdrop-blur-xl transition focus-within:border-line-strong">
+        <span className="self-center">
+          <Orb busy={!!busy} />
+        </span>
         <textarea
           ref={ta}
-          className="input cmd-input"
           rows={1}
           value={text}
-          placeholder="Message an agent… @name, @all, @group  ·  /handoff @from @to"
+          placeholder={busy ?? "Message an agent · @ to direct · /handoff @from @to"}
           aria-label="Command bar"
           disabled={!!busy}
+          className="max-h-[120px] min-h-[24px] flex-1 resize-none self-center bg-transparent text-[15px] leading-6 text-ink outline-none placeholder:text-ink-3 disabled:opacity-60"
           onChange={(e) => {
             setText(e.target.value);
             setCaret(e.target.selectionStart);
@@ -163,15 +192,39 @@ export function CommandBar() {
           onSelect={(e) => setCaret((e.target as HTMLTextAreaElement).selectionStart)}
           onKeyDown={onKeyDown}
         />
-        {busy ? (
-          <span className="pill working cmd-chip"><span className="dot" />{busy}</span>
-        ) : (
-          <button className="btn primary" disabled={!text.trim()} onClick={() => void send()} title="Send (Enter)">
-            Send
+        <div className="flex items-center gap-2 self-center">
+          <button
+            onClick={insertAt}
+            title="Mention a console or group"
+            aria-label="Mention"
+            className="grid size-9 place-items-center rounded-full border border-line-strong text-ink-2 transition hover:bg-surface-3 hover:text-ink active:scale-95"
+          >
+            <span className="text-[15px] font-semibold">@</span>
           </button>
-        )}
+          <button
+            onClick={() => void send()}
+            disabled={!text.trim() || !!busy}
+            title="Send (Enter)"
+            aria-label="Send"
+            className="grid size-9 place-items-center rounded-full bg-ink text-bg transition hover:bg-white active:scale-95 disabled:bg-surface-3 disabled:text-ink-3"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 19V5M5.5 11.5L12 5l6.5 6.5" />
+            </svg>
+          </button>
+        </div>
       </div>
-      {result && <div className={`cmd-result ${result.tone}`} role="status">{result.text}</div>}
+
+      {result && (
+        <div
+          role="status"
+          className={`animate-rise absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-[12px] ${
+            result.tone === "ok" ? "bg-ok/12 text-ok" : result.tone === "warn" ? "bg-warn/12 text-warn" : "bg-danger/12 text-danger"
+          }`}
+        >
+          {result.text}
+        </div>
+      )}
     </div>
   );
 }

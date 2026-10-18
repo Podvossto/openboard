@@ -1,3 +1,4 @@
+import { AgentIcon } from "../../components/AgentIcon";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -6,7 +7,7 @@ import type { ConsoleNode } from "../../lib/types";
 import { ipc } from "../../lib/ipc";
 import { autoStart } from "../../lib/actions";
 import { agentLabel, useBoard } from "../../store/board";
-import { agentGlyph, canResume, shortPath } from "./helpers";
+import { canResume, shortPath } from "./helpers";
 import { terminalControls } from "./controls";
 
 type Phase = "attaching" | "live" | "stopped";
@@ -45,10 +46,10 @@ export function TerminalView({ console: c }: { console: ConsoleNode }) {
       allowProposedApi: true,
       scrollback: 10000,
       theme: {
-        background: "#0d1016",
+        background: "#0e0f12",
         foreground: cssVar("--text", "#e3e6ee"),
         cursor: cssVar("--accent", "#7c9cff"),
-        cursorAccent: "#0d1016",
+        cursorAccent: "#0e0f12",
         selectionBackground: "rgba(124, 156, 255, 0.3)",
       },
     });
@@ -200,7 +201,7 @@ export function TerminalView({ console: c }: { console: ConsoleNode }) {
       {showOverlay && (
         <div className="console-overlay" role="dialog" aria-label="Start console">
           <div className="console-overlay-card">
-            <div className="console-overlay-icon">{agentGlyph(c.agent)}</div>
+            <div className="console-overlay-icon"><AgentIcon agent={c.agent.kind} size={24} /></div>
             <div className="console-overlay-title">{agentLabel(c.agent)}</div>
             <div className="console-overlay-cwd" title={cwdShown}>
               {shortPath(cwdShown, 3) || "default folder"}

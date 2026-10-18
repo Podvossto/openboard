@@ -49,3 +49,9 @@
   background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-1);
 }
 .react-flow__node-group { pointer-events: all; }
+
+/* React Flow wraps custom nodes in a default white/gray card for type 'group' — neutralise it. */
+.react-flow__node-group, .react-flow__node-console {
+  background: transparent !important; border: 0 !important; padding: 0 !important; box-shadow: none !important; border-radius: 16px;
+}
+.react-flow__node-group.selectable:hover, .react-flow__node-group.selected { box-shadow: none !important; }

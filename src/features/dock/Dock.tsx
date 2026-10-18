@@ -12,10 +12,12 @@ import {
 } from "../../store/board";
 import { emptyGroupFrame, planGroupFromConsoles } from "../board/grouping";
 import { CommandBar } from "./CommandBar";
+import { AgentIcon } from "../../components/AgentIcon";
 import { useDismiss } from "./useDismiss";
+import { ComposeGroup } from "./ComposeGroup";
 import "./dock.css";
 
-type MenuName = "new" | "spawn" | "presets" | null;
+type MenuName = "new" | "compose" | "presets" | null;
 
 const AGENTS: { label: string; agent: AgentKind }[] = [
   { label: "Claude Code", agent: { kind: "claudeCode" } },
@@ -32,8 +34,6 @@ export function Dock() {
   const rf = useReactFlow();
   const presets = useBoard((s) => s.board.presets);
   const [menu, setMenu] = useState<MenuName>(null);
-  const [spawnN, setSpawnN] = useState(4);
-  const [spawnAgent, setSpawnAgent] = useState(0);
   const [presetName, setPresetName] = useState("");
   const [note, setNote] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -65,13 +65,12 @@ export function Dock() {
     [fitTo, say],
   );
 
-  const spawn = async () => {
+  const spawn = async (name: string, members: { title: string; agent: AgentKind }[]) => {
     setMenu(null);
-    const agent = AGENTS[spawnAgent]!.agent;
-    const members = Array.from({ length: spawnN }, (_, i) => ({ title: `${AGENTS[spawnAgent]!.label.split(" ")[0]!.toLowerCase()}-${i + 1}`, agent }));
     try {
-      const { groupId } = await spawnGroup(`Team ${spawnN}`, members);
+      const { groupId } = await spawnGroup(name, members);
       fitTo([groupId]);
+      say(`Spawned ${members.length} in “${name}”.`);
     } catch (e) {
       say(`Spawn failed: ${String(e)}`);
     }
@@ -172,129 +171,188 @@ export function Dock() {
   const toggle = (m: Exclude<MenuName, null>) => setMenu((cur) => (cur === m ? null : m));
 
   return (
-    <div className="dock" ref={root} role="toolbar" aria-label="Board dock">
-      {note && <div className="dock-note" role="status">{note}</div>}
-      <CommandBar />
-      <div className="dock-row">
-        <div className="split">
-          <button className="btn primary" title="New console with the default agent (Ctrl+Shift+N)" onClick={() => void newConsole()}>
-            + New <span className="kbd">Ctrl+Shift+N</span>
-          </button>
-          <button
-            className="btn primary caret"
-            title="Choose agent"
-            aria-label="Choose agent"
-            aria-haspopup="menu"
-            aria-expanded={menu === "new"}
-            onClick={() => toggle("new")}
-          >
-            ▾
-          </button>
-          {menu === "new" && (
-            <div className="menu dock-menu" role="menu">
-              {AGENTS.map((a) => (
-                <button key={a.label} className="menu-item" role="menuitem" onClick={() => void newConsole(a.agent)}>
-                  {a.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+    <div
+      ref={root}
+      role="toolbar"
+      aria-label="Board dock"
+      className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex flex-col items-center gap-3 px-6"
+    >
+      {/* popovers anchor above the pill row */}
+      <div className="pointer-events-auto relative flex w-full max-w-[760px] flex-col items-center gap-3">
+        {note && (
+          <div role="status" className="glass animate-pop rounded-full px-4 py-1.5 text-[12px] text-ink">
+            {note}
+          </div>
+        )}
 
-        <div className="split">
-          <button className="btn" title="Spawn a group of N consoles" onClick={() => void spawn()}>
-            Spawn {spawnN}
-          </button>
-          <button
-            className="btn caret"
-            title="Spawn options"
-            aria-label="Spawn options"
-            aria-haspopup="menu"
-            aria-expanded={menu === "spawn"}
-            onClick={() => toggle("spawn")}
-          >
-            ▾
-          </button>
-          {menu === "spawn" && (
-            <div className="menu dock-menu spawn-menu" role="menu">
-              <div className="menu-label">Consoles</div>
-              <div className="stepper">
-                <button className="btn icon sm" aria-label="Fewer" disabled={spawnN <= 2} onClick={() => setSpawnN((n) => Math.max(2, n - 1))}>−</button>
-                <span className="stepper-val" aria-live="polite">{spawnN}</span>
-                <button className="btn icon sm" aria-label="More" disabled={spawnN >= 8} onClick={() => setSpawnN((n) => Math.min(8, n + 1))}>+</button>
-              </div>
-              <div className="menu-label">Agent</div>
-              <select className="input" value={spawnAgent} onChange={(e) => setSpawnAgent(Number(e.target.value))}>
-                {AGENTS.map((a, i) => (
-                  <option key={a.label} value={i}>{a.label}</option>
+        {menu === "compose" && (
+          <div className="absolute bottom-[calc(100%+12px)] right-0">
+            <ComposeGroup onBack={() => setMenu(null)} onSpawn={(n, m) => void spawn(n, m)} />
+          </div>
+        )}
+
+        <HintChip />
+
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <div className="relative">
+            <button
+              className="ring-pill"
+              style={{ ["--ring-a" as string]: "#56d8c9", ["--ring-b" as string]: "#8ea2ff" }}
+              title="New console with the default agent (Ctrl+Shift+N) · right-click to choose agent"
+              onClick={() => void newConsole()}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                toggle("new");
+              }}
+              aria-expanded={menu === "new"}
+            >
+              New console
+            </button>
+            {menu === "new" && (
+              <PopMenu>
+                {AGENTS.map((a) => (
+                  <PopItem key={a.label} onClick={() => void newConsole(a.agent)}>
+                    <AgentIcon agent={a.agent.kind} size={15} />
+                    {a.label}
+                  </PopItem>
                 ))}
-              </select>
-              <button className="btn primary spawn-go" onClick={() => void spawn()}>Spawn {spawnN}</button>
-            </div>
-          )}
-        </div>
+              </PopMenu>
+            )}
+          </div>
 
-        <button className="btn" title="Group selected consoles, or create an empty group (Ctrl+Shift+G)" onClick={() => void groupSelected()}>
-          Group
-        </button>
-
-        <div className="split">
           <button
-            className="btn"
-            title="Spawn a preset or save the selection as one"
-            aria-haspopup="menu"
-            aria-expanded={menu === "presets"}
-            onClick={() => toggle("presets")}
+            className="ring-pill"
+            style={{ ["--ring-a" as string]: "#7bd389", ["--ring-b" as string]: "#56d8c9" }}
+            title="Compose and spawn a group of agents"
+            aria-expanded={menu === "compose"}
+            onClick={() => toggle("compose")}
           >
-            Presets ▾
+            Spawn 4
           </button>
-          {menu === "presets" && (
-            <div className="menu dock-menu" role="menu">
-              {presets.length === 0 && <div className="menu-label">No presets yet</div>}
-              {presets.map((p) => (
-                <div key={p.id} className="preset-row">
-                  <button className="menu-item" role="menuitem" onClick={() => void spawnPreset(p.id)}>
-                    {p.name}
-                    <span className="hint">{p.members.length}</span>
+
+          <button
+            className="ring-pill"
+            style={{ ["--ring-a" as string]: "#f2d45a", ["--ring-b" as string]: "#b6e35a" }}
+            title="Group selected consoles, or create an empty group (Ctrl+Shift+G)"
+            onClick={() => void groupSelected()}
+          >
+            Group
+          </button>
+
+          <div className="relative">
+            <button
+              className="ring-pill"
+              style={{ ["--ring-a" as string]: "#f2a65a", ["--ring-b" as string]: "#f2d45a" }}
+              title="Spawn a preset or save the selection as one"
+              aria-expanded={menu === "presets"}
+              onClick={() => toggle("presets")}
+            >
+              Presets
+            </button>
+            {menu === "presets" && (
+              <PopMenu wide>
+                {presets.length === 0 && <div className="px-2.5 py-1.5 text-[12px] text-ink-3">No presets yet</div>}
+                {presets.map((p) => (
+                  <div key={p.id} className="group/row flex items-center">
+                    <PopItem onClick={() => void spawnPreset(p.id)}>
+                      {p.name}
+                      <span className="ml-auto text-[11px] text-ink-3">{p.members.length}</span>
+                    </PopItem>
+                    <button
+                      className="ml-1 grid size-6 place-items-center rounded-md text-ink-3 opacity-0 transition group-hover/row:opacity-100 hover:bg-surface-3 hover:text-danger"
+                      title={`Delete preset ${p.name}`}
+                      aria-label={`Delete preset ${p.name}`}
+                      onClick={() => useBoard.getState().removePreset(p.id)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <div className="my-1.5 h-px bg-line" />
+                <form
+                  className="flex gap-1.5 p-1"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void savePreset();
+                  }}
+                >
+                  <input
+                    className="h-8 min-w-0 flex-1 rounded-lg border border-line bg-bg/60 px-2.5 text-[12px] outline-none focus:border-accent/70"
+                    placeholder="Save selection as…"
+                    value={presetName}
+                    onChange={(e) => setPresetName(e.target.value)}
+                  />
+                  <button className="h-8 rounded-lg bg-surface-3 px-3 text-[12px] font-semibold transition hover:bg-line-strong disabled:opacity-40" type="submit" disabled={!presetName.trim()}>
+                    Save
                   </button>
-                  <button
-                    className="btn ghost sm icon preset-del"
-                    title={`Delete preset ${p.name}`}
-                    aria-label={`Delete preset ${p.name}`}
-                    onClick={() => useBoard.getState().removePreset(p.id)}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              <div className="menu-sep" />
-              <div className="menu-label">Save selection as preset</div>
-              <form
-                className="preset-save"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void savePreset();
-                }}
-              >
-                <input className="input" placeholder="Preset name" value={presetName} onChange={(e) => setPresetName(e.target.value)} />
-                <button className="btn sm" type="submit" disabled={!presetName.trim()}>Save</button>
-              </form>
-            </div>
-          )}
+                </form>
+              </PopMenu>
+            )}
+          </div>
+
+          <button
+            className="ring-pill"
+            style={{ ["--ring-a" as string]: "#ff6b8a", ["--ring-b" as string]: "#ff9b6b" }}
+            title="Send Esc (interrupt) to every running console"
+            onClick={() => void pauseAll()}
+          >
+            Pause all
+          </button>
+          <button
+            className="ring-pill"
+            style={{ ["--ring-a" as string]: "#ff6b8a", ["--ring-b" as string]: "#b48cff" }}
+            title="Send “continue” to resting consoles"
+            onClick={() => void resumeAll()}
+          >
+            Resume all
+          </button>
+          <button
+            className="ring-pill"
+            style={{ ["--ring-a" as string]: "#b48cff", ["--ring-b" as string]: "#8ea2ff" }}
+            title="Workspace memory (Ctrl+Shift+M)"
+            onClick={() => useBoard.getState().setUi({ memoryOpen: true })}
+          >
+            Memory
+          </button>
         </div>
 
-        <span className="dock-sep" />
-        <button className="btn" title="Send Esc to every running console" onClick={() => void pauseAll()}>
-          ⏸ Pause all
-        </button>
-        <button className="btn" title="Send “continue” to resting consoles" onClick={() => void resumeAll()}>
-          ▶ Resume all
-        </button>
-        <span className="dock-sep" />
-        <button className="btn" title="Workspace memory (Ctrl+Shift+M)" onClick={() => useBoard.getState().setUi({ memoryOpen: true })}>
-          Memory
-        </button>
+        <CommandBar />
       </div>
+    </div>
+  );
+}
+
+function PopMenu({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
+  return (
+    <div role="menu" className={`glass animate-pop absolute bottom-[calc(100%+10px)] left-1/2 z-30 -translate-x-1/2 rounded-xl p-1.5 ${wide ? "w-64" : "w-48"}`}>
+      {children}
+    </div>
+  );
+}
+
+function PopItem({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      role="menuitem"
+      onClick={onClick}
+      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-ink transition hover:bg-surface-3 focus-visible:bg-surface-3 focus-visible:outline-none"
+    >
+      {children}
+    </button>
+  );
+}
+
+const HINTS = ["pass this task to codex", "@all run the tests", "/handoff @api @web", "@docs update the README"];
+
+function HintChip() {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setI((x) => (x + 1) % HINTS.length), 6000);
+    return () => window.clearInterval(t);
+  }, []);
+  return (
+    <div key={i} className="animate-rise rounded-full border border-line bg-surface/80 px-3 py-1 text-[12px] text-ink-3 backdrop-blur">
+      Try <span className="font-semibold text-ink-2">“{HINTS[i]}”</span>
     </div>
   );
 }

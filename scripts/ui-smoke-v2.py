@@ -30,8 +30,8 @@ with sync_playwright() as p:
 
     # 2. Rail & Dock
     check(pg.locator(".rail").count() == 1, "Left rail rendered")
-    check(pg.locator(".dock").count() == 1, "Floating dock rendered")
-    check(pg.locator(".cmdbar").count() == 1, "Command bar rendered in dock")
+    check(pg.get_by_role("toolbar", name="Board dock").count() == 1, "Floating dock rendered")
+    check(pg.get_by_label("Command bar").count() == 1, "Command bar rendered in dock")
     check(pg.locator(".zoom-control").count() == 1, "Zoom controls rendered")
 
     # 3. Consoles & Group
