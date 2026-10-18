@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { ask, open } from "@tauri-apps/plugin-dialog";
+import { open } from "@tauri-apps/plugin-dialog";
+import { ask } from "../../lib/dialog";
 import { activeWorkspace, useBoard } from "../../store/board";
 import { ipc, submit } from "../../lib/ipc";
 import type { ConsoleNode } from "../../lib/types";
@@ -40,6 +41,12 @@ export function ConsoleMenu({ c, onRename, onClose }: Props) {
       }
     }
   };
+
+  useEffect(() => {
+    const onOpenEvt = () => setOpen(true);
+    window.addEventListener(`open-console-menu-${c.id}`, onOpenEvt);
+    return () => window.removeEventListener(`open-console-menu-${c.id}`, onOpenEvt);
+  }, [c.id]);
 
   useEffect(() => {
     if (!open_ && !diag && !loopOpen) return;

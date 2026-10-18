@@ -97,7 +97,6 @@ function InkButton() {
 }
 
 export function Rail() {
-  const { fitView } = useReactFlow();
   const memoryOpen = useBoard((s) => s.ui.memoryOpen);
   const settingsOpen = useBoard((s) => s.ui.settingsOpen);
   const codeOpen = useBoard((s) => s.ui.codeOpen);
@@ -119,10 +118,6 @@ export function Rail() {
       <RailButton label="Memory" active={memoryOpen} onClick={() => setUi({ memoryOpen: true })}>
         <path d="M6 3h9l4 4v14H6z" />
         <path d="M14 3v5h5M9 13h7M9 17h5" />
-      </RailButton>
-      <RailButton label="Fit all" onClick={() => void fitView({ duration: 300 })}>
-        <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
-        <rect x="9" y="9" width="6" height="6" rx="1" />
       </RailButton>
       <div className="flex-1" />
       <RailButton label="Settings" active={settingsOpen} onClick={() => setUi({ settingsOpen: true })}>

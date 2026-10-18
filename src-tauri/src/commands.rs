@@ -103,6 +103,9 @@ pub struct SpawnArgs {
     /// Orchestrator lead: gets the agent-board MCP tools + lead instructions (Claude only).
     #[serde(default)]
     lead: bool,
+    /// Per-console model override (`--model`), e.g. "opus" / "sonnet" for Claude.
+    #[serde(default)]
+    model: Option<String>,
 }
 
 #[tauri::command]
@@ -203,6 +206,9 @@ pub fn spawn_console(state: State<'_, AppState>, args: SpawnArgs) -> Result<()> 
             AgentKind::Codex => spec.args.extend(settings.codex_args.iter().cloned()),
             AgentKind::Custom { .. } => {}
         }
+        // after the defaults so the per-console choice wins (CLIs take the last --model)
+        spec.args
+            .extend(agents::model_args(&agent, args.model.as_deref()));
         spec
     };
     let (program, argv) = resolve_spec(spec)?;

@@ -36,7 +36,7 @@ export async function createConsole(agent?: AgentKind, opts: { title?: string; c
 }
 
 /** Spawn several consoles inside a new group below everything else. */
-export async function spawnGroup(name: string, members: { title: string; agent: AgentKind; lead?: boolean }[], cwd = "") {
+export async function spawnGroup(name: string, members: { title: string; agent: AgentKind; lead?: boolean; profile?: string; model?: string }[], cwd = "") {
   const st = useBoard.getState();
   const ws = activeWorkspace(st.board);
   const gid = await ipc.newId();
@@ -54,6 +54,8 @@ export async function spawnGroup(name: string, members: { title: string; agent: 
       height: CONSOLE_H,
       group: gid,
       ...(m.lead ? { lead: true } : {}),
+      ...(m.profile ? { profile: m.profile } : {}),
+      ...(m.model ? { model: m.model } : {}),
     })),
   );
   ids.forEach((id) => autoStart.add(id));

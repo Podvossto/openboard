@@ -28,6 +28,8 @@ export interface ConsoleNode {
   profile?: string;
   /** orchestrator lead: gets agent-board MCP tools to drive other consoles (Claude only) */
   lead?: boolean;
+  /** model override passed as --model (Claude / Codex); undefined = CLI default */
+  model?: string;
 }
 
 export type LoopTrigger =

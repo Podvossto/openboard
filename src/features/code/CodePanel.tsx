@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { useReactFlow } from "@xyflow/react";
-import { ask, open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { ask } from "../../lib/dialog";
 import { fadeVariants, sheetVariants } from "../../lib/motion";
 import { ipc } from "../../lib/ipc";
 import type { FsEntry } from "../../lib/types";

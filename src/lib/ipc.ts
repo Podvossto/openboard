@@ -38,6 +38,8 @@ export interface SpawnArgs {
   profile?: string;
   /** orchestrator lead (Claude) */
   lead?: boolean;
+  /** per-console model override (--model) */
+  model?: string;
 }
 
 export interface LoadedSettings {

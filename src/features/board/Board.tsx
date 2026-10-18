@@ -5,9 +5,11 @@ import {
   BackgroundVariant,
   MiniMap,
   ReactFlow,
+  useReactFlow,
   type NodeChange,
   type Viewport,
 } from "@xyflow/react";
+import { AnimatePresence } from "motion/react";
 import { ConsoleNodeView } from "../console/ConsoleNodeView";
 import { activeWorkspace, useBoard } from "../../store/board";
 import { STATUS_COLOR } from "../console/statusStyle";
@@ -19,6 +21,7 @@ import { buildEdges } from "./edges";
 import { InkCapture, InkStrokes } from "../ink/InkLayer";
 import { InkToolbar } from "../ink/InkToolbar";
 import { TileNodeView } from "../tiles/TileNodeView";
+import { RadialMenu } from "./RadialMenu";
 import type { Tile } from "../../lib/types";
 import "./board.css";
 
@@ -33,6 +36,7 @@ export function Board() {
 }
 
 function WorkspaceCanvas() {
+  const rf = useReactFlow();
   const consoles = useBoard((s) => activeWorkspace(s.board).consoles);
   const groups = useBoard((s) => activeWorkspace(s.board).groups);
   const tiles = useBoard((s) => activeWorkspace(s.board).tiles ?? NO_TILES);
@@ -40,6 +44,10 @@ function WorkspaceCanvas() {
   const inking = useBoard((s) => !!s.ui.ink);
   const flashes = useBoard((s) => s.flashes);
   const contacted = useBoard((s) => s.contacted);
+
+  const [radialMenu, setRadialMenu] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null);
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+
   // re-evaluate edge activity when the newest flash expires
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -80,50 +88,89 @@ function WorkspaceCanvas() {
     useBoard.getState().setViewport(v);
   }, []);
 
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    setMousePos({ x: e.clientX, y: e.clientY });
+  }, []);
+
   return (
-    <ReactFlow
-      className={resizing ? "is-resizing" : undefined}
-      nodes={nodes}
-      nodeTypes={nodeTypes}
-      edges={edges}
-      edgeTypes={edgeTypes}
-      edgesFocusable={false}
-      nodesConnectable={false}
-      onNodesChange={onNodesChange}
-      defaultViewport={initialViewport}
-      onMoveEnd={onMoveEnd}
-      onNodeClick={(_, n) => useBoard.getState().setFocused(n.type === "console" ? n.id : null)}
-      onPaneClick={() => useBoard.getState().setFocused(null)}
-      minZoom={0.15}
-      maxZoom={2}
-      panOnScroll
-      panOnDrag={!inking}
-      nodesDraggable={!inking}
-      zoomOnScroll={false}
-      zoomActivationKeyCode="Control"
-      deleteKeyCode={null}
-      selectionOnDrag={false}
-      proOptions={{ hideAttribution: true }}
-      colorMode="dark"
-    >
-      <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="#2b2c33" bgColor="#0a0b0d" />
-      <MiniMap
-        className="board-minimap"
-        position="bottom-left"
-        pannable
-        zoomable
-        maskColor="rgba(10, 11, 13, 0.72)"
-        nodeColor={(n) => {
-          if (n.type === "group") return "rgba(124, 156, 255, 0.18)";
-          if (n.type === "tile") return "rgba(242, 212, 90, 0.45)";
-          const r = runtime[n.id];
-          return STATUS_COLOR[r?.running ? r.status : "exited"];
+    <div className="relative w-full h-full overflow-hidden" onPointerMove={onPointerMove}>
+      {mousePos && (
+        <div
+          className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-300"
+          style={{
+            background: `radial-gradient(circle 260px at ${mousePos.x}px ${mousePos.y}px, rgba(255, 255, 255, 0.05), transparent 75%)`,
+          }}
+        />
+      )}
+
+      <ReactFlow
+        className={resizing ? "is-resizing" : undefined}
+        nodes={nodes}
+        nodeTypes={nodeTypes}
+        edges={edges}
+        edgeTypes={edgeTypes}
+        edgesFocusable={false}
+        nodesConnectable={false}
+        onNodesChange={onNodesChange}
+        defaultViewport={initialViewport}
+        onMoveEnd={onMoveEnd}
+        onNodeClick={(_, n) => {
+          setRadialMenu(null);
+          useBoard.getState().setFocused(n.type === "console" ? n.id : null);
         }}
-      />
-      <InkStrokes />
-      <InkCapture />
-      <InkToolbar />
-      <ZoomControl />
-    </ReactFlow>
+        onPaneClick={() => {
+          setRadialMenu(null);
+          useBoard.getState().setFocused(null);
+        }}
+        onPaneContextMenu={(e) => {
+          e.preventDefault();
+          const flow = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+          setRadialMenu({ x: e.clientX, y: e.clientY, flowX: flow.x, flowY: flow.y });
+        }}
+        minZoom={0.15}
+        maxZoom={2}
+        panOnScroll
+        panOnDrag={!inking}
+        nodesDraggable={!inking}
+        zoomOnScroll={false}
+        zoomActivationKeyCode="Control"
+        deleteKeyCode={null}
+        selectionOnDrag={false}
+        proOptions={{ hideAttribution: true }}
+        colorMode="dark"
+      >
+        <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="#2b2c33" bgColor="#0a0b0d" />
+        <MiniMap
+          className="board-minimap"
+          position="bottom-left"
+          pannable
+          zoomable
+          maskColor="rgba(10, 11, 13, 0.72)"
+          nodeColor={(n) => {
+            if (n.type === "group") return "rgba(124, 156, 255, 0.18)";
+            if (n.type === "tile") return "rgba(242, 212, 90, 0.45)";
+            const r = runtime[n.id];
+            return STATUS_COLOR[r?.running ? r.status : "exited"];
+          }}
+        />
+        <InkStrokes />
+        <InkCapture />
+        <InkToolbar />
+        <ZoomControl />
+      </ReactFlow>
+
+      <AnimatePresence>
+        {radialMenu && (
+          <RadialMenu
+            x={radialMenu.x}
+            y={radialMenu.y}
+            flowX={radialMenu.flowX}
+            flowY={radialMenu.flowY}
+            onClose={() => setRadialMenu(null)}
+            onOpenAddConsoleDialog={(p) => useBoard.getState().setUi({ addConsole: { pos: p } })}
+          />
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

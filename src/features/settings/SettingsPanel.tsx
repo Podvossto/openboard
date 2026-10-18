@@ -3,13 +3,14 @@ import { fadeVariants, sheetVariants } from "../../lib/motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { ipc } from "../../lib/ipc";
-import type { AgentKind, AuthInfo, Detected, Settings } from "../../lib/types";
+import type { AgentKind, AuthInfo, CatalogStatus, Detected, Settings } from "../../lib/types";
 import { activeWorkspace, CONSOLE_H, CONSOLE_W, nextPosition, useBoard } from "../../store/board";
 import { clampFont, formatArgs, parseArgs } from "./args";
-import { AgentIcon } from "../../components/AgentIcon";
+import { AgentIcon, CatalogIcon } from "../../components/AgentIcon";
 import { ProfilesSection } from "./ProfilesSection";
 import "./settings.css";
 
+type TabId = "general" | "agents" | "providers" | "terminal";
 type AgentChoice = "claudeCode" | "codex" | "shell";
 
 const CHOICES: { id: AgentChoice; label: string }[] = [
@@ -36,7 +37,7 @@ function Switch({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="set-switch-row">
+    <label className="set-switch-row cursor-pointer">
       <span>{label}</span>
       <span className="switch">
         <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
@@ -77,15 +78,19 @@ function AgentCard({
         <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-line bg-black/30">
           <AgentIcon agent={agent} size={17} />
         </span>
-        <strong>{name}</strong>
-        <span className={`chip ${st.cls}`}>{st.text}</span>
-        <span className="agent-detail">{info?.detail ?? ""}</span>
+        <div className="flex flex-col min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <strong>{name}</strong>
+            <span className={`chip ${st.cls}`}>{st.text}</span>
+          </div>
+          {info?.detail && <span className="agent-detail truncate text-[11.5px] text-ink-3">{info.detail}</span>}
+        </div>
         <button className="btn sm" disabled={!info?.installed} onClick={onLogin}>
           {info?.loggedIn ? "Re-authenticate" : "Sign in"}
         </button>
       </div>
-      <div className="field">
-        <label htmlFor={idBase}>Extra CLI arguments</label>
+      <div className="field mt-2">
+        <label htmlFor={idBase}>Default CLI arguments</label>
         <input
           id={idBase}
           className="input"
@@ -102,7 +107,27 @@ function AgentCard({
   );
 }
 
+function CatalogItem({ item }: { item: CatalogStatus }) {
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-line bg-surface-2/60 px-3 py-2">
+      <div className="flex items-center gap-2.5">
+        <span className="grid size-7 place-items-center rounded-lg bg-black/30 text-ink-2 font-mono text-[11px] font-bold">
+          <CatalogIcon id={item.id} size={15} />
+        </span>
+        <div className="flex flex-col">
+          <span className="text-[13px] font-semibold text-ink">{item.name}</span>
+          <span className="font-mono text-[10.5px] text-ink-3">{item.program}</span>
+        </div>
+      </div>
+      <span className={`chip ${item.installed ? "ok" : "off"}`}>
+        {item.installed ? "Available" : "Not on PATH"}
+      </span>
+    </div>
+  );
+}
+
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
+  const [activeTab, setActiveTab] = useState<TabId>("general");
   const [draft, setDraft] = useState<Settings>(() => useBoard.getState().settings);
   const resolvedCwd = useBoard((s) => s.resolvedCwd);
   const [detected, setDetected] = useState<Detected | null>(null);
@@ -114,7 +139,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const pending = useRef<Settings | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const firstField = useRef<HTMLInputElement>(null);
 
   const flush = useCallback(async () => {
     clearTimeout(timer.current);
@@ -146,7 +170,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
     [flush],
   );
 
-  // flush any pending save on close; stop the "Saved" timer
   useEffect(
     () => () => {
       clearTimeout(savedTimer.current);
@@ -174,7 +197,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     detect();
-    firstField.current?.focus();
   }, [detect]);
 
   useEffect(() => {
@@ -193,7 +215,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   };
 
   const login = async (agent: "claudeCode" | "codex", profile?: string, profileName?: string) => {
-    await flush(); // the backend must know a just-added profile before spawning with it
+    await flush();
     const st = useBoard.getState();
     const a: AgentKind = { kind: agent };
     const id = await ipc.newId();
@@ -217,14 +239,23 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
   const choice = choiceOf(draft.defaultAgent);
 
+  const tabs: { id: TabId; label: string }[] = [
+    { id: "general", label: "General" },
+    { id: "agents", label: "Agents & CLIs" },
+    { id: "providers", label: "Providers & Accounts" },
+    { id: "terminal", label: "Terminal" },
+  ];
+
   return (
     <motion.div className="sheet-backdrop" variants={fadeVariants} initial="initial" animate="animate" exit="exit" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <motion.aside variants={sheetVariants} className="panel sheet" role="dialog" aria-modal="true" aria-label="Settings">
         <header className="sheet-head">
-          <h2>Settings</h2>
-          <span className={`saved${saved ? " show" : ""}${saveErr ? " err" : ""}`} role="status">
-            {saveErr ? "Save failed" : "Saved"}
-          </span>
+          <div className="flex items-center gap-3">
+            <h2>Settings</h2>
+            <span className={`saved${saved ? " show" : ""}${saveErr ? " err" : ""}`} role="status">
+              {saveErr ? "Save failed" : "Saved"}
+            </span>
+          </div>
           <button className="btn ghost icon" onClick={onClose} aria-label="Close settings" title="Close (Esc)">
             <svg width="12" height="12" viewBox="0 0 10 10" aria-hidden="true">
               <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -232,155 +263,180 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           </button>
         </header>
 
+        {/* Tab Navigation */}
+        <div className="flex items-center gap-1 border-b border-line px-5 py-2 bg-surface-2/40">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              className={`rounded-full px-3.5 py-1 text-[12.5px] font-medium transition ${
+                activeTab === t.id
+                  ? "bg-surface-3 text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong)] font-semibold"
+                  : "text-ink-3 hover:bg-surface-2 hover:text-ink"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         <div className="sheet-body">
-          <section className="set-section">
-            <h3>General</h3>
-            <div className="field">
-              <label htmlFor="set-cwd">Default working directory</label>
-              <div className="row">
-                <input
-                  id="set-cwd"
-                  ref={firstField}
-                  className="input grow"
-                  value={draft.defaultCwd}
-                  placeholder={resolvedCwd || "Home folder"}
-                  spellCheck={false}
-                  onChange={(e) => patch({ defaultCwd: e.target.value })}
-                />
-                <button className="btn" onClick={() => void browse()}>
-                  Browse…
-                </button>
-                <button
-                  className="btn ghost"
-                  disabled={!draft.defaultCwd}
-                  onClick={() => patch({ defaultCwd: "" })}
-                  title="Use the home folder"
-                >
-                  Clear
-                </button>
-              </div>
-              <span className="help">New consoles open here unless you pick another folder.</span>
-            </div>
-
-            <div className="field">
-              <label id="set-agent-label">Default agent</label>
-              <div className="seg" role="radiogroup" aria-labelledby="set-agent-label">
-                {CHOICES.map((c) => (
-                  <button
-                    key={c.id}
-                    role="radio"
-                    aria-checked={choice === c.id}
-                    className={choice === c.id ? "on" : ""}
-                    onClick={() => patch({ defaultAgent: agentOf(c.id) })}
-                  >
-                    {c.label}
+          {activeTab === "general" && (
+            <section className="set-section">
+              <h3>General Preferences</h3>
+              <div className="field">
+                <label htmlFor="set-cwd">Default working directory</label>
+                <div className="row">
+                  <input
+                    id="set-cwd"
+                    className="input grow"
+                    value={draft.defaultCwd}
+                    placeholder={resolvedCwd || "Home folder"}
+                    spellCheck={false}
+                    onChange={(e) => patch({ defaultCwd: e.target.value })}
+                  />
+                  <button className="btn" onClick={() => void browse()}>
+                    Browse…
                   </button>
-                ))}
+                  <button
+                    className="btn ghost"
+                    disabled={!draft.defaultCwd}
+                    onClick={() => patch({ defaultCwd: "" })}
+                    title="Use the home folder"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <span className="help">New consoles open here unless you specify another folder.</span>
               </div>
-            </div>
 
-            <div className="field">
-              <label htmlFor="set-shell">Shell</label>
-              <input
-                id="set-shell"
-                className="input"
-                value={draft.shell}
-                placeholder={detected?.shell || "auto-detect"}
-                spellCheck={false}
-                onChange={(e) => patch({ shell: e.target.value })}
+              <div className="field">
+                <label id="set-agent-label">Default agent for new consoles</label>
+                <div className="seg" role="radiogroup" aria-labelledby="set-agent-label">
+                  {CHOICES.map((c) => (
+                    <button
+                      key={c.id}
+                      role="radio"
+                      aria-checked={choice === c.id}
+                      className={choice === c.id ? "on" : ""}
+                      onClick={() => patch({ defaultAgent: agentOf(c.id) })}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="field">
+                <label htmlFor="set-shell">Shell Program</label>
+                <input
+                  id="set-shell"
+                  className="input"
+                  value={draft.shell}
+                  placeholder={detected?.shell || "auto-detect"}
+                  spellCheck={false}
+                  onChange={(e) => patch({ shell: e.target.value })}
+                />
+                <span className="help">Executable used for Shell consoles. Leave empty to auto-detect.</span>
+              </div>
+
+              <div className="mt-4 flex flex-col gap-2">
+                <Switch
+                  label="Resume consoles on launch"
+                  checked={draft.autoResume}
+                  onChange={(v) => patch({ autoResume: v })}
+                />
+                <Switch
+                  label="Blink console border when it needs you"
+                  checked={draft.blinkNeedsYou}
+                  onChange={(v) => patch({ blinkNeedsYou: v })}
+                />
+                <Switch
+                  label="OS desktop notification when a console needs you"
+                  checked={draft.notifyNeedsYou}
+                  onChange={(v) => patch({ notifyNeedsYou: v })}
+                />
+                <Switch
+                  label="Show usage in top navigation bar"
+                  checked={draft.showUsage}
+                  onChange={(v) => patch({ showUsage: v })}
+                />
+              </div>
+            </section>
+          )}
+
+          {activeTab === "agents" && (
+            <section className="set-section">
+              <div className="set-title-row">
+                <h3>Primary Agent CLIs</h3>
+                <button className="btn ghost sm" onClick={detect} disabled={detecting} title="Re-check installed CLIs">
+                  {detecting ? "Checking…" : "Refresh"}
+                </button>
+              </div>
+
+              <AgentCard
+                name="Claude Code"
+                agent="claudeCode"
+                info={detected?.claude}
+                args={draft.claudeArgs}
+                onArgs={(a) => patch({ claudeArgs: a })}
+                onLogin={() => void login("claudeCode")}
               />
-              <span className="help">Program used for Shell consoles. Leave empty to auto-detect.</span>
-            </div>
 
-            <div className="field">
-              <label htmlFor="set-font">Font size</label>
-              <input
-                id="set-font"
-                className="input narrow"
-                type="number"
-                min={10}
-                max={20}
-                value={fontText}
-                onChange={(e) => {
-                  setFontText(e.target.value);
-                  const n = Number(e.target.value);
-                  if (e.target.value !== "" && n >= 10 && n <= 20) patch({ fontSize: clampFont(n) });
-                }}
-                onBlur={() => setFontText(String(clampFont(Number(fontText || draft.fontSize))))}
+              <AgentCard
+                name="Codex"
+                agent="codex"
+                info={detected?.codex}
+                args={draft.codexArgs}
+                onArgs={(a) => patch({ codexArgs: a })}
+                onLogin={() => void login("codex")}
               />
-            </div>
 
-            <Switch
-              label="Resume consoles on launch"
-              checked={draft.autoResume}
-              onChange={(v) => patch({ autoResume: v })}
-            />
-            <p className="help">
-              When Agent Board starts, every stopped console that has a session to resume (Claude with a
-              session id, Codex) is relaunched automatically.
-            </p>
-          </section>
+              <div className="mt-5">
+                <h3 className="mb-2">Other Detected CLIs</h3>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {(detected?.catalog ?? []).map((item) => (
+                    <CatalogItem key={item.id} item={item} />
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
 
-          <section className="set-section">
-            <div className="set-title-row">
-              <h3>Agents &amp; accounts</h3>
-              <button className="btn ghost sm" onClick={detect} disabled={detecting} title="Re-check installed CLIs">
-                {detecting ? "Checking…" : "Refresh"}
-              </button>
-            </div>
-            <AgentCard
-              name="Claude Code"
-              agent="claudeCode"
-              info={detected?.claude}
-              args={draft.claudeArgs}
-              onArgs={(a) => patch({ claudeArgs: a })}
-              onLogin={() => void login("claudeCode")}
-            />
-            <AgentCard
-              name="Codex"
-              agent="codex"
-              info={detected?.codex}
-              args={draft.codexArgs}
-              onArgs={(a) => patch({ codexArgs: a })}
-              onLogin={() => void login("codex")}
-            />
-            <p className="help">
-              Agent Board never stores OAuth tokens or passwords. Signing in opens a console that runs the CLI's own login
-              flow; credentials stay with the CLI.
-            </p>
-          </section>
+          {activeTab === "providers" && (
+            <section className="set-section">
+              <h3>Providers &amp; Additional Accounts</h3>
+              <ProfilesSection
+                profiles={draft.profiles ?? []}
+                onChange={(profiles) => patch({ profiles })}
+                onLogin={(p) => void login(p.cli === "claude" ? "claudeCode" : "codex", p.id, p.name)}
+              />
+            </section>
+          )}
 
-          <section className="set-section">
-            <h3>More accounts &amp; providers</h3>
-            <ProfilesSection
-              profiles={draft.profiles ?? []}
-              onChange={(profiles) => patch({ profiles })}
-              onLogin={(p) => void login(p.cli === "claude" ? "claudeCode" : "codex", p.id, p.name)}
-            />
-            <p className="help">
-              Provider API keys are kept in the Windows Credential Manager, never in Agent Board files. Each account gets
-              its own config folder, so logins and histories never mix.
-            </p>
-          </section>
-
-          <section className="set-section">
-            <h3>Notifications</h3>
-            <Switch
-              label="Blink console border when it needs you"
-              checked={draft.blinkNeedsYou}
-              onChange={(v) => patch({ blinkNeedsYou: v })}
-            />
-            <Switch
-              label="OS notification when a console needs you"
-              checked={draft.notifyNeedsYou}
-              onChange={(v) => patch({ notifyNeedsYou: v })}
-            />
-            <Switch
-              label="Show Claude usage in top bar"
-              checked={draft.showUsage}
-              onChange={(v) => patch({ showUsage: v })}
-            />
-          </section>
+          {activeTab === "terminal" && (
+            <section className="set-section">
+              <h3>Terminal &amp; Display</h3>
+              <div className="field">
+                <label htmlFor="set-font">Terminal font size (px)</label>
+                <input
+                  id="set-font"
+                  className="input narrow"
+                  type="number"
+                  min={10}
+                  max={20}
+                  value={fontText}
+                  onChange={(e) => {
+                    setFontText(e.target.value);
+                    const n = Number(e.target.value);
+                    if (e.target.value !== "" && n >= 10 && n <= 20) patch({ fontSize: clampFont(n) });
+                  }}
+                  onBlur={() => setFontText(String(clampFont(Number(fontText || draft.fontSize))))}
+                />
+                <span className="help">Controls font size in xterm terminals (scales smoothly with canvas zoom).</span>
+              </div>
+            </section>
+          )}
         </div>
       </motion.aside>
     </motion.div>

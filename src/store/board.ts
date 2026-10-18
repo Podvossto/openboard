@@ -76,6 +76,8 @@ interface BoardState {
     codeOpen: boolean;
     /** file to open when the Code studio opens (pinned tile double-click) */
     codeTarget: { root: string; path: string } | null;
+    /** New-console dialog (Task 7): open with optional flow position / target group */
+    addConsole: { pos?: { x: number; y: number }; group?: string } | null;
   };
 
   hydrate: (b: Board) => void;
@@ -145,7 +147,7 @@ export const useBoard = create<BoardState>((set) => ({
   runtime: {},
   revision: 0,
   focused: null,
-  ui: { settingsOpen: false, memoryOpen: false, usageAnalyticsOpen: false, ink: null, codeOpen: false, codeTarget: null },
+  ui: { settingsOpen: false, memoryOpen: false, usageAnalyticsOpen: false, ink: null, codeOpen: false, codeTarget: null, addConsole: null },
 
   hydrate: (board) => set({ board, loaded: true }),
   setSettings: (settings, resolvedCwd) => set({ settings, resolvedCwd }),

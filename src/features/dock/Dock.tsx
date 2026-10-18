@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { ask } from "../../lib/dialog";
 import { createConsole, spawnGroup } from "../../lib/actions";
 import { ipc, submit } from "../../lib/ipc";
 import type { CatalogStatus, AgentKind } from "../../lib/types";
@@ -67,7 +67,7 @@ export function Dock() {
     [fitTo, say],
   );
 
-  const spawn = async (name: string, members: { title: string; agent: AgentKind; lead?: boolean }[]) => {
+  const spawn = async (name: string, members: { title: string; agent: AgentKind; lead?: boolean; model?: string; profile?: string }[]) => {
     setMenu(null);
     try {
       const { groupId } = await spawnGroup(name, members);
@@ -167,7 +167,7 @@ export function Dock() {
       const k = e.key.toLowerCase();
       if (k === "n") {
         e.preventDefault();
-        void newConsole();
+        useBoard.getState().setUi({ addConsole: {} });
       } else if (k === "g") {
         e.preventDefault();
         void groupSelected();
@@ -223,8 +223,8 @@ export function Dock() {
             <button
               className="ring-pill"
               style={{ ["--ring-a" as string]: "#56d8c9", ["--ring-b" as string]: "#8ea2ff" }}
-              title="New console with the default agent (Ctrl+Shift+N) · right-click to choose agent"
-              onClick={() => void newConsole()}
+              title="New console — choose agent, name and folder (Ctrl+Shift+N) · right-click for quick create"
+              onClick={() => useBoard.getState().setUi({ addConsole: {} })}
               onContextMenu={(e) => {
                 e.preventDefault();
                 toggle("new");

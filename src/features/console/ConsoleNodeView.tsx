@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { Handle, NodeResizer, Position, type NodeProps } from "@xyflow/react";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { ask } from "../../lib/dialog";
 import type { ConsoleFlowNode } from "../board/nodes";
 import { displayStatus, useBoard } from "../../store/board";
 import { ConsoleAgentIcon } from "../../components/AgentIcon";
@@ -62,6 +62,11 @@ export const ConsoleNodeView = memo(function ConsoleNodeView({ data, selected, d
       animate={leaving ? "exit" : "animate"}
       whileHover={dragging ? undefined : { y: -2, transition: spring.snappy }}
       data-status={status}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.dispatchEvent(new CustomEvent(`open-console-menu-${c.id}`));
+      }}
     >
       <NodeResizer
         isVisible={selected}

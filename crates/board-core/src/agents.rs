@@ -194,6 +194,15 @@ pub fn wrap_batch(program: PathBuf, args: Vec<String>, comspec: &str) -> (PathBu
 }
 
 /// Default interactive shell for "Custom" consoles.
+/// Per-console model override → CLI flag. Claude and Codex both take `--model <id>`;
+/// other CLIs have no common flag, so nothing is added. Blank/whitespace = no override.
+pub fn model_args(kind: &AgentKind, model: Option<&str>) -> Vec<String> {
+    match (kind, model.map(str::trim).filter(|m| !m.is_empty())) {
+        (AgentKind::ClaudeCode | AgentKind::Codex, Some(m)) => vec!["--model".into(), m.into()],
+        _ => vec![],
+    }
+}
+
 pub fn default_shell() -> String {
     if cfg!(windows) {
         if which::which("pwsh").is_ok() {
@@ -209,6 +218,25 @@ pub fn default_shell() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn model_override_only_for_known_clis() {
+        assert_eq!(
+            model_args(&AgentKind::ClaudeCode, Some(" opus ")),
+            ["--model", "opus"]
+        );
+        assert_eq!(
+            model_args(&AgentKind::Codex, Some("gpt-5")),
+            ["--model", "gpt-5"]
+        );
+        assert!(model_args(&AgentKind::ClaudeCode, Some("  ")).is_empty());
+        assert!(model_args(&AgentKind::ClaudeCode, None).is_empty());
+        let shell = AgentKind::Custom {
+            program: "bash".into(),
+            args: vec![],
+        };
+        assert!(model_args(&shell, Some("opus")).is_empty());
+    }
 
     #[test]
     fn claude_fresh_pins_session_and_settings() {

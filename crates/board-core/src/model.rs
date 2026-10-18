@@ -153,6 +153,9 @@ pub struct ConsoleNode {
     /// Orchestrator lead (Claude only): started with the agent-board MCP tools.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub lead: bool,
+    /// Per-console model override (`--model`). None → the CLI's default model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Automation loop config (frontend-owned shape, see src/features/loops).
     #[serde(rename = "loop", default, skip_serializing_if = "Option::is_none")]
     pub loop_cfg: Option<serde_json::Value>,

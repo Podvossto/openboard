@@ -17,6 +17,8 @@ import { useAutosave } from "../features/board/useAutosave";
 import { resumeAll } from "../features/console/launch";
 import { ipc } from "../lib/ipc";
 import { useBoard } from "../store/board";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { AddConsoleModal } from "../features/console/AddConsoleModal";
 
 export function App() {
   const loaded = useBoard((s) => s.loaded);
@@ -87,6 +89,14 @@ export function App() {
           {ui.usageAnalyticsOpen && <UsageAnalytics key="usage-analytics" onClose={() => useBoard.getState().setUi({ usageAnalyticsOpen: false })} />}
         </AnimatePresence>
         </Suspense>
+        {ui.addConsole && (
+          <AddConsoleModal
+            targetPos={ui.addConsole.pos}
+            targetGroup={ui.addConsole.group}
+            onClose={() => useBoard.getState().setUi({ addConsole: null })}
+          />
+        )}
+        <ConfirmDialog />
       </div>
     </ReactFlowProvider>
     </MotionConfig>

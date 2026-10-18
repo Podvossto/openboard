@@ -144,6 +144,7 @@ mod tests {
             loop_cfg: None,
             profile: None,
             lead: false,
+            model: None,
         });
         b
     }

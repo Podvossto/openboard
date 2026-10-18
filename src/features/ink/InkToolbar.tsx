@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { ask } from "../../lib/dialog";
 import { activeWorkspace, useBoard, type InkTool } from "../../store/board";
 
 export const INK_COLORS = ["#f4f4f6", "#ffb547", "#ff6b6b", "#4fd1a1", "#8ea2ff", "#e57ad8"];

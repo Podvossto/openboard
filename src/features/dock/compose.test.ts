@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { composeMembers } from "./ComposeGroup";
+import { applyOverrides, composeMembers } from "./ComposeGroup";
+
+describe("applyOverrides", () => {
+  it("applies per-member name/model/account, skipping the lead", () => {
+    const base = composeMembers("general", ["claudeCode", "codex"], true);
+    const out = applyOverrides(base, { 0: { title: " api ", model: "opus" }, 1: { profile: "p1", title: "  " } }, true);
+    expect(out[0]).toEqual({ title: "lead", agent: { kind: "claudeCode" }, lead: true });
+    expect(out[1]).toEqual({ title: "api", agent: { kind: "claudeCode" }, model: "opus" });
+    expect(out[2]).toEqual({ title: "codex-1", agent: { kind: "codex" }, profile: "p1" });
+  });
+  it("no overrides = unchanged", () => {
+    const base = composeMembers("frontend", ["codex"]);
+    expect(applyOverrides(base, {}, false)).toEqual(base);
+  });
+});
 
 describe("composeMembers", () => {
   it("names members by role and numbers them", () => {

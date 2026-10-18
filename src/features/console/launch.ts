@@ -50,6 +50,7 @@ export async function launchConsole(id: string, resume: boolean, opts: LaunchOpt
       resume,
       profile: node.profile,
       lead: node.lead,
+      model: node.model,
     });
     // PTY is up; mounted TerminalViews attach themselves when they notice
     st.setRuntime(id, { running: true });

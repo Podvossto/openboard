@@ -1,7 +1,7 @@
 import { motion } from "motion/react";
 import { fadeVariants, sheetVariants } from "../../lib/motion";
 import { useEffect, useRef, useState } from "react";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { ask } from "../../lib/dialog";
 import { activeWorkspace, useBoard } from "../../store/board";
 import { submit } from "../../lib/ipc";
 import { debounce } from "../../lib/debounce";

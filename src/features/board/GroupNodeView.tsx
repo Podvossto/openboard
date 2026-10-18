@@ -1,16 +1,17 @@
 import { memo, useCallback, useRef, useState } from "react";
 import { NodeResizer, type NodeProps } from "@xyflow/react";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { ask } from "../../lib/dialog";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type { GroupFlowNode } from "./nodes";
 import { nextSlotInGroup, groupHeightFor } from "./grouping";
-import { activeWorkspace, CONSOLE_H, CONSOLE_W, GROUP_COLORS, statusCounts, useBoard } from "../../store/board";
-import { autoStart } from "../../lib/actions";
+import { activeWorkspace, GROUP_COLORS, statusCounts, useBoard } from "../../store/board";
 import { ipc } from "../../lib/ipc";
 import { useDismiss } from "../dock/useDismiss";
 import { focusCommandBar } from "../dock/commandBus";
 import { motion } from "motion/react";
 import { spring } from "../../lib/motion";
 import { removeAnimated } from "../../lib/removeAnimated";
+import { terminalControls } from "../console/controls";
 
 export const GroupNodeView = memo(function GroupNodeView({ data, selected }: NodeProps<GroupFlowNode>) {
   const g = data.group;
@@ -30,29 +31,46 @@ export const GroupNodeView = memo(function GroupNodeView({ data, selected }: Nod
   const closeMenu = useCallback(() => setMenu(null), []);
   useDismiss(menu !== null, menuRef, closeMenu);
 
-  const addConsole = async () => {
+  const changeGroupCwd = async () => {
+    setMenu(null);
     const st = useBoard.getState();
     const ws = activeWorkspace(st.board);
     const members = ws.consoles.filter((c) => c.group === g.id);
+    if (!members.length) return;
+
+    const picked = await openDialog({
+      directory: true,
+      multiple: false,
+      title: `Select working directory for ${g.name}`,
+    }).catch(() => null);
+
+    if (typeof picked !== "string") return;
+
+    const runningMembers = members.filter((c) => st.runtime[c.id]?.running);
+    const confirmMsg = runningMembers.length > 0
+      ? `Change working directory of all ${members.length} console(s) in "${g.name}" to:\n${picked}\n\nRestart ${runningMembers.length} running agent(s) now?`
+      : `Change working directory of all ${members.length} console(s) in "${g.name}" to:\n${picked}`;
+
+    const ok = await ask(confirmMsg, { title: "Group working directory", kind: "info" });
+    if (!ok) return;
+
+    for (const c of members) {
+      st.patchConsole(c.id, { cwd: picked });
+      if (st.runtime[c.id]?.running) {
+        await ipc.kill(c.id).catch(() => undefined);
+        await terminalControls.get(c.id)?.start(false);
+      }
+    }
+  };
+
+  /** Opens the New console dialog targeted at the next free slot in this group. */
+  const addConsole = () => {
+    const st = useBoard.getState();
+    const members = activeWorkspace(st.board).consoles.filter((c) => c.group === g.id);
     const slot = nextSlotInGroup(members, g);
-    const id = await ipc.newId();
-    const agent = st.settings.defaultAgent;
-    const n = ws.consoles.length + 1;
-    autoStart.add(id);
     const need = groupHeightFor(slot.y);
     if (need > g.height) st.patchGroup(g.id, { height: need });
-    st.addConsoles([
-      {
-        id,
-        title: `${agent.kind === "claudeCode" ? "claude" : agent.kind === "codex" ? "codex" : "shell"}-${n}`,
-        agent,
-        cwd: "",
-        ...slot,
-        width: CONSOLE_W,
-        height: CONSOLE_H,
-        group: g.id,
-      },
-    ]);
+    st.setUi({ addConsole: { pos: { x: slot.x, y: slot.y }, group: g.id } });
   };
 
   const removeAll = async () => {
@@ -148,6 +166,9 @@ export const GroupNodeView = memo(function GroupNodeView({ data, selected }: Nod
               </button>
               <button className="menu-item" role="menuitem" onClick={() => setMenu("color")}>
                 Change color
+              </button>
+              <button className="menu-item" role="menuitem" onClick={() => void changeGroupCwd()} disabled={ids.length === 0}>
+                Set working directory…
               </button>
               <button
                 className="menu-item"

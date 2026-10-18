@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { ask, open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { ask } from "../../lib/dialog";
 import { ipc } from "../../lib/ipc";
 import { useBoard } from "../../store/board";
 import type { GitAction, GitBranch, GitGraph, GitStatus, Tile, TileData } from "../../lib/types";
