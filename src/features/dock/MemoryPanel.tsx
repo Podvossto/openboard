@@ -3,7 +3,7 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import { activeWorkspace, useBoard } from "../../store/board";
 import { submit } from "../../lib/ipc";
 import { debounce } from "../../lib/debounce";
-import "./dock.css";
+import "../settings/settings.css";
 
 export function MemoryPanel({ onClose }: { onClose: () => void }) {
   const wsName = useBoard((s) => activeWorkspace(s.board).name);

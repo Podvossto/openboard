@@ -71,12 +71,12 @@ export const GroupNodeView = memo(function GroupNodeView({ data, selected }: Nod
 
   return (
     <div className={`group-frame ${selected ? "selected" : ""}`} style={{ ["--gc" as string]: g.color }}>
-      <NodeResizer isVisible={selected} minWidth={320} minHeight={160} lineStyle={{ borderColor: g.color }} />
-      <div className="group-header">
-        <span className="swatch" style={{ background: g.color }} />
+      <NodeResizer isVisible={selected} minWidth={320} minHeight={160} lineStyle={{ borderColor: g.color }} handleClassName="!size-2.5 !rounded-full !border-0" handleStyle={{ background: g.color }} />
+      <div className="group-header flex h-11 cursor-grab items-center gap-2.5 pl-4 pr-2 active:cursor-grabbing">
+        <span className="size-2.5 shrink-0 rounded-full shadow-[0_0_10px_var(--gc)]" style={{ background: g.color }} />
         {editing ? (
           <input
-            className="input title-input nodrag"
+            className="nodrag h-7 w-44 rounded-full border border-accent/70 bg-bg px-3 text-[13px] font-semibold text-ink outline-none"
             autoFocus
             defaultValue={g.name}
             onBlur={(e) => {
@@ -89,22 +89,33 @@ export const GroupNodeView = memo(function GroupNodeView({ data, selected }: Nod
             }}
           />
         ) : (
-          <span className="gname" title="Double-click to rename" onDoubleClick={() => setEditing(true)}>
+          <span
+            className="gname max-w-[260px] truncate text-[13px] font-bold uppercase tracking-[0.08em]"
+            style={{ color: g.color }}
+            title="Double-click to rename"
+            onDoubleClick={() => setEditing(true)}
+          >
             {g.name}
           </span>
         )}
-        <span className="gcount">{ids.length}</span>
-        <span className="gstatus">
-          {counts.working > 0 && <span className="pill working"><span className="dot" />{counts.working}</span>}
-          {counts.needsYou > 0 && <span className="pill needsYou"><span className="dot" />{counts.needsYou}</span>}
-          {counts.resting > 0 && <span className="pill resting"><span className="dot" />{counts.resting}</span>}
+        <span className="grid h-5 min-w-5 place-items-center rounded-full bg-surface-3 px-1.5 text-[11px] font-semibold text-ink-2">{ids.length}</span>
+        <span className="flex gap-1">
+          {counts.working > 0 && <Mini tone="bg-info" n={counts.working} />}
+          {counts.needsYou > 0 && <Mini tone="bg-warn" n={counts.needsYou} />}
+          {counts.resting > 0 && <Mini tone="bg-ok" n={counts.resting} />}
         </span>
-        <span className="spacer" />
-        <button className="btn sm icon ghost nodrag" title="Add console to this group" aria-label="Add console" onClick={addConsole}>
-          +
+        <span className="flex-1" />
+        <button
+          className="nodrag grid size-7 place-items-center rounded-full text-ink-2 transition hover:bg-surface-3 hover:text-ink active:scale-95"
+          title="Add console to this group"
+          aria-label="Add console"
+          onClick={addConsole}
+        >
+          <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>
         </button>
         <button
-          className="btn sm ghost nodrag"
+          className="nodrag ring-pill !h-7 !px-3 !text-[12px]"
+          style={{ ["--ring-a" as string]: g.color, ["--ring-b" as string]: "#8ea2ff" }}
           title={`Send a message to every console in ${g.name}`}
           onClick={() => focusCommandBar(`@${mentionName} `)}
         >
@@ -112,17 +123,17 @@ export const GroupNodeView = memo(function GroupNodeView({ data, selected }: Nod
         </button>
         <div className="menu-anchor nodrag" ref={menuRef}>
           <button
-            className="btn sm icon ghost"
+            className="grid size-7 place-items-center rounded-full text-ink-3 transition hover:bg-surface-3 hover:text-ink active:scale-95"
             title="Group menu"
             aria-label="Group menu"
             aria-haspopup="menu"
             aria-expanded={menu !== null}
             onClick={() => setMenu(menu ? null : "main")}
           >
-            …
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
           </button>
           {menu === "main" && (
-            <div className="menu" role="menu">
+            <div className="menu glass animate-pop !rounded-xl !border-line !bg-transparent" role="menu">
               <button className="menu-item" role="menuitem" onClick={() => { setMenu(null); setEditing(true); }}>
                 Rename
               </button>
@@ -143,7 +154,7 @@ export const GroupNodeView = memo(function GroupNodeView({ data, selected }: Nod
             </div>
           )}
           {menu === "color" && (
-            <div className="menu color-menu" role="menu">
+            <div className="menu color-menu glass animate-pop !rounded-xl !border-line !bg-transparent" role="menu">
               <div className="swatches">
                 {GROUP_COLORS.map((col) => (
                   <button
@@ -162,3 +173,12 @@ export const GroupNodeView = memo(function GroupNodeView({ data, selected }: Nod
     </div>
   );
 });
+
+function Mini({ tone, n }: { tone: string; n: number }) {
+  return (
+    <span className="flex h-5 items-center gap-1 rounded-full bg-surface-3/80 px-1.5 text-[11px] font-semibold text-ink-2">
+      <span className={`size-1.5 rounded-full ${tone}`} />
+      {n}
+    </span>
+  );
+}

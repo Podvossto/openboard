@@ -199,33 +199,52 @@ export function TerminalView({ console: c }: { console: ConsoleNode }) {
     <div className="terminal-wrap" onMouseDown={() => useBoard.getState().setFocused(c.id)}>
       <div ref={host} className="terminal-host" />
       {showOverlay && (
-        <div className="console-overlay" role="dialog" aria-label="Start console">
-          <div className="console-overlay-card">
-            <div className="console-overlay-icon"><AgentIcon agent={c.agent.kind} size={24} /></div>
-            <div className="console-overlay-title">{agentLabel(c.agent)}</div>
-            <div className="console-overlay-cwd" title={cwdShown}>
+        <div className="console-overlay absolute inset-0 grid place-items-center bg-bg/80 backdrop-blur-sm" role="dialog" aria-label="Start console">
+          <div className="glass animate-rise flex min-w-[300px] max-w-[90%] flex-col items-center gap-2 rounded-3xl px-10 py-8 text-center">
+            <span className="mb-1 grid size-14 place-items-center rounded-2xl border border-line-strong bg-black/30 shadow-[0_0_30px_-8px_var(--tint)]">
+              <AgentIcon agent={c.agent.kind} size={30} />
+            </span>
+            <div className="text-[17px] font-semibold tracking-tight text-ink">{agentLabel(c.agent)}</div>
+            <div className="max-w-full truncate font-mono text-[12px] text-ink-3" title={cwdShown}>
               {shortPath(cwdShown, 3) || "default folder"}
             </div>
             {exitCode !== undefined && (
-              <div className="console-overlay-exit">
-                Last run exited{exitCode !== null ? ` with code ${exitCode}` : ""}
-              </div>
+              <div className="text-[12px] text-ink-3">Last run exited{exitCode !== null ? ` with code ${exitCode}` : ""}</div>
             )}
-            {error && <div className="console-overlay-error">{error}</div>}
-            <div className="console-overlay-actions">
+            {error && <div className="max-w-[360px] break-words text-[12px] text-danger">{error}</div>}
+            <div className="mt-3 flex gap-2">
               {resumable && (
-                <button className="btn primary" autoFocus onClick={() => void start(true)}>
+                <button
+                  className="h-9 rounded-full bg-ink px-4 text-[13px] font-semibold text-bg transition hover:bg-white active:scale-95"
+                  autoFocus
+                  onClick={() => void start(true)}
+                >
                   Resume last session
                 </button>
               )}
-              <button className={resumable ? "btn" : "btn primary"} onClick={() => void start(false)}>
+              <button
+                className={
+                  resumable
+                    ? "ring-pill !h-9"
+                    : "h-9 rounded-full bg-ink px-4 text-[13px] font-semibold text-bg transition hover:bg-white active:scale-95"
+                }
+                style={resumable ? { ["--ring-a" as string]: "#56d8c9", ["--ring-b" as string]: "#8ea2ff" } : undefined}
+                onClick={() => void start(false)}
+              >
                 Start new
               </button>
             </div>
           </div>
         </div>
       )}
-      {busy && !running && <div className="console-overlay busy">Starting…</div>}
+      {busy && !running && (
+        <div className="console-overlay busy absolute inset-0 grid place-items-center bg-bg/70 text-[13px] text-ink-2">
+          <span className="flex items-center gap-2">
+            <span className="size-3.5 animate-spin rounded-full border-2 border-ink-3 border-t-ink" />
+            Starting…
+          </span>
+        </div>
+      )}
     </div>
   );
 }

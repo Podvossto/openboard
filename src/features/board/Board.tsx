@@ -75,9 +75,10 @@ function WorkspaceCanvas() {
       <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="#2b2c33" bgColor="#0a0b0d" />
       <MiniMap
         className="board-minimap"
+        position="bottom-left"
         pannable
         zoomable
-        maskColor="rgba(10, 12, 16, 0.7)"
+        maskColor="rgba(10, 11, 13, 0.72)"
         nodeColor={(n) => {
           if (n.type === "group") return "rgba(124, 156, 255, 0.18)";
           const r = runtime[n.id];

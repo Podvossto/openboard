@@ -1,31 +1,17 @@
 /* Board: groups, zoom control, minimap. Tokens only. */
 .group-frame {
-  position: relative; width: 100%; height: 100%; border-radius: var(--r-lg);
-  background: color-mix(in srgb, var(--gc, var(--accent)) 7%, transparent);
-  border: 1.5px solid color-mix(in srgb, var(--gc, var(--accent)) 40%, transparent);
-  transition: border-color var(--dur-2) var(--ease), background var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
+  position: relative; width: 100%; height: 100%; border-radius: 22px;
+  background:
+    radial-gradient(120% 60% at 0% 0%, color-mix(in srgb, var(--gc) 10%, transparent), transparent 60%),
+    color-mix(in srgb, var(--gc) 3%, transparent);
+  border: 1.5px dashed color-mix(in srgb, var(--gc) 45%, transparent);
+  transition: border-color 200ms var(--ease-out-soft), box-shadow 200ms var(--ease-out-soft);
 }
 .group-frame.selected {
-  border-color: var(--gc, var(--accent));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gc, var(--accent)) 18%, transparent);
+  border-style: solid; border-color: var(--gc);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--gc) 14%, transparent), 0 0 40px -10px var(--gc);
 }
-.group-header {
-  position: absolute; inset: 0 0 auto 0; height: 40px; display: flex; align-items: center; gap: 8px;
-  padding: 0 8px 0 12px; border-radius: var(--r-lg) var(--r-lg) 0 0; cursor: grab;
-  background: color-mix(in srgb, var(--gc, var(--accent)) 14%, var(--surface));
-  border-bottom: 1px solid color-mix(in srgb, var(--gc, var(--accent)) 30%, transparent);
-}
-.group-header:active { cursor: grabbing; }
-.group-header .swatch { width: 12px; height: 12px; border-radius: 4px; flex: none; }
-.group-header .gname { font-weight: 600; color: var(--text); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.group-header .title-input { height: 26px; width: 180px; }
-.group-header .gcount {
-  min-width: 20px; height: 20px; padding: 0 6px; display: inline-grid; place-items: center;
-  border-radius: var(--r-pill); background: var(--surface-3); color: var(--text-2); font-size: 11px; font-weight: 600;
-}
-.group-header .gstatus { display: inline-flex; gap: 4px; }
-.group-header .gstatus .pill { height: 20px; padding: 0 7px; font-size: 11px; }
-.group-header .spacer { flex: 1; }
+.group-header { position: absolute; inset: 0 0 auto 0; border-radius: 22px 22px 0 0; }
 .menu-anchor { position: relative; }
 .menu-anchor .menu { top: calc(100% + 6px); right: 0; }
 .color-menu { min-width: 0 !important; }
@@ -37,16 +23,10 @@
 .swatch-btn:hover { transform: scale(1.15); }
 .swatch-btn.on { border-color: var(--text); }
 
-.zoom-control {
-  display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: var(--r-md);
-  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-1);
-}
-.zoom-control .zoom-pct { min-width: 54px; justify-content: center; font-variant-numeric: tabular-nums; }
-.zoom-control .zoom-sep { width: 1px; height: 16px; background: var(--border); margin: 0 2px; }
-
 .board-minimap.react-flow__minimap {
-  width: 160px; height: 100px; border-radius: var(--r-md); overflow: hidden;
-  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-1);
+  width: 168px; height: 104px; border-radius: 16px; overflow: hidden; margin: 0 0 20px 20px !important;
+  background: color-mix(in srgb, var(--color-surface) 85%, transparent) !important;
+  border: 1px solid var(--color-line); box-shadow: 0 18px 40px -16px rgb(0 0 0 / 0.8);
 }
 .react-flow__node-group { pointer-events: all; }
 

@@ -15,7 +15,6 @@ import { CommandBar } from "./CommandBar";
 import { AgentIcon } from "../../components/AgentIcon";
 import { useDismiss } from "./useDismiss";
 import { ComposeGroup } from "./ComposeGroup";
-import "./dock.css";
 
 type MenuName = "new" | "compose" | "presets" | null;
 

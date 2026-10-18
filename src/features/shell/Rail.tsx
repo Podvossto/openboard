@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { useBoard } from "../../store/board";
-import "./shell.css";
 
 function RailButton({
   label,
@@ -16,13 +15,17 @@ function RailButton({
 }) {
   return (
     <button
-      className={`rail-btn${active ? " active" : ""}`}
+      className={`rail-btn relative grid size-10 place-items-center rounded-full transition duration-150 active:scale-95 ${
+        active
+          ? "active bg-surface-3 text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong),0_0_16px_-6px_var(--color-accent)]"
+          : "text-ink-3 hover:bg-surface-2 hover:text-ink"
+      }`}
       title={label}
       aria-label={label}
       aria-current={active ? "page" : undefined}
       onClick={onClick}
     >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg className="size-[19px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         {children}
       </svg>
     </button>
@@ -36,7 +39,7 @@ export function Rail() {
   const setUi = useBoard.getState().setUi;
 
   return (
-    <nav className="rail" aria-label="Main">
+    <nav className="rail flex w-16 shrink-0 flex-col items-center gap-2 border-r border-line/60 bg-bg py-4" aria-label="Main">
       <RailButton label="Board" active={!memoryOpen && !settingsOpen}>
         <rect x="3" y="3" width="8" height="8" rx="2" />
         <rect x="13" y="3" width="8" height="5" rx="2" />
@@ -51,7 +54,7 @@ export function Rail() {
         <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
         <rect x="9" y="9" width="6" height="6" rx="1" />
       </RailButton>
-      <div className="rail-spacer" />
+      <div className="flex-1" />
       <RailButton label="Settings" active={settingsOpen} onClick={() => setUi({ settingsOpen: true })}>
         <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
         <circle cx="16" cy="7" r="2" />

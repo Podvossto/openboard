@@ -16,7 +16,7 @@ with sync_playwright() as p:
     pg.on("pageerror", lambda e: errors.append(str(e)))
     pg.on("console", lambda m: m.type == "error" and errors.append(m.text))
     pg.goto(URL); pg.wait_for_selector(".ring-pill", timeout=15000); pg.wait_for_timeout(900)
-    labels = [t.strip() for t in pg.locator(".ring-pill").all_inner_texts()]
+    labels = [t.strip() for t in pg.get_by_role("toolbar", name="Board dock").locator(".ring-pill").all_inner_texts()]
     check(labels[:7] == ["New console", "Spawn 4", "Group", "Presets", "Pause all", "Resume all", "Memory"], f"pill row {labels}")
     check(pg.get_by_label("Command bar").count() == 1, "composer present")
     pg.screenshot(path="/tmp/ab-dock.png")

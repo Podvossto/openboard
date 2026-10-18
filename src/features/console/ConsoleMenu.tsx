@@ -91,8 +91,9 @@ export function ConsoleMenu({ c, onRename, onClose }: Props) {
   return (
     <div className="console-menu-root nodrag" ref={root} onKeyDown={onMenuKey}>
       <button
-        className="btn ghost sm icon"
+        className="grid size-7 place-items-center rounded-full text-ink-3 transition hover:bg-surface-3 hover:text-ink active:scale-95 aria-expanded:bg-surface-3 aria-expanded:text-ink"
         title="More"
+        aria-label="More"
         aria-haspopup="menu"
         aria-expanded={open_}
         onClick={() => {
@@ -100,10 +101,10 @@ export function ConsoleMenu({ c, onRename, onClose }: Props) {
           setOpen((v) => !v);
         }}
       >
-        …
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
       </button>
       {open_ && (
-        <div className="menu console-menu" role="menu">
+        <div className="menu console-menu glass animate-pop !rounded-xl !border-line !bg-transparent" role="menu">
           <button className="menu-item" role="menuitem" onClick={run(onRename)}>
             Rename
           </button>
@@ -152,7 +153,7 @@ export function ConsoleMenu({ c, onRename, onClose }: Props) {
         </div>
       )}
       {diag && (
-        <div className="menu console-diag" role="dialog" aria-label="Diagnostics">
+        <div className="menu console-diag glass animate-pop !rounded-xl !border-line !bg-transparent" role="dialog" aria-label="Diagnostics">
           <div className="menu-label">Claude hook events</div>
           {hooks && hooks.length > 0 ? (
             <ul>

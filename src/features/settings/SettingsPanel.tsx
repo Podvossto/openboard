@@ -4,6 +4,7 @@ import { ipc } from "../../lib/ipc";
 import type { AgentKind, AuthInfo, Detected, Settings } from "../../lib/types";
 import { activeWorkspace, CONSOLE_H, CONSOLE_W, nextPosition, useBoard } from "../../store/board";
 import { clampFont, formatArgs, parseArgs } from "./args";
+import { AgentIcon } from "../../components/AgentIcon";
 import "./settings.css";
 
 type AgentChoice = "claudeCode" | "codex" | "shell";
@@ -70,6 +71,9 @@ function AgentCard({
   return (
     <div className="agent-card">
       <div className="agent-card-head">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-line bg-black/30">
+          <AgentIcon agent={agent} size={17} />
+        </span>
         <strong>{name}</strong>
         <span className={`chip ${st.cls}`}>{st.text}</span>
         <span className="agent-detail">{info?.detail ?? ""}</span>
