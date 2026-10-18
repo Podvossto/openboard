@@ -10,6 +10,7 @@ pub mod hooks;
 pub mod model;
 pub mod persist;
 pub mod pty;
+pub mod router;
 pub mod scrollback;
 pub mod settings;
 pub mod status;

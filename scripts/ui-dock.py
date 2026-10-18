@@ -37,6 +37,21 @@ with sync_playwright() as p:
     pg.wait_for_timeout(300)
     check(pg.get_by_role("listbox", name="Mentions").count() == 1, "@ autocomplete opens")
     pg.screenshot(path="/tmp/ab-mention.png")
+    # AI dispatcher: plain text -> plan preview -> Run
+    web = pg.locator(".console", has_text="web").first
+    for name in ["Start new", "Resume last session"]:
+        btn = web.get_by_role("button", name=name)
+        if btn.count():
+            btn.first.dispatch_event("click"); break
+    pg.wait_for_timeout(700)
+    ta.fill(""); ta.type("pass this task to codex"); ta.press("Enter"); pg.wait_for_timeout(500)
+    plan = pg.get_by_role("dialog", name="Dispatch plan")
+    check(plan.count() == 1 and "Hand off" in plan.inner_text(), "dispatcher shows handoff plan")
+    pg.screenshot(path="/tmp/ab-plan.png")
+    plan.get_by_role("button", name="Run ↵").click(); pg.wait_for_timeout(700)
+    log = pg.evaluate("window.__ipcLog")
+    check(any(e["cmd"] == "route_instruction" for e in log) and any(e["cmd"] == "handoff_brief" for e in log), "route → handoff_brief called")
+    check(plan.count() == 0, "plan closes after run")
     check(not errors, "no page errors " + "; ".join(errors[:2]))
     b.close()
 print("RESULT", "FAIL" if fails else "PASS", len(fails)); sys.exit(1 if fails else 0)

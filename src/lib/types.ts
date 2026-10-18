@@ -106,3 +106,18 @@ export interface HookLogEntry {
   at: number;
   event: string;
 }
+
+/** Console summary sent to the AI dispatcher (board-core::router::RouterConsole). */
+export interface RouterConsole {
+  id: string;
+  title: string;
+  agent: string;
+  status: string;
+  group?: string;
+  focused: boolean;
+}
+/** Dispatcher answer (board-core::router::Plan). */
+export type RoutePlan =
+  | { action: "send"; targets: string[]; message: string; reason: string }
+  | { action: "handoff"; from: string; to: string; reason: string }
+  | { action: "none"; reason: string };

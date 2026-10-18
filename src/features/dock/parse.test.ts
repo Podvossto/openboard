@@ -46,13 +46,14 @@ describe("parseCommand send", () => {
     if (r.kind !== "send") throw new Error("expected send");
     expect(r.message).toBe("ask @web about it");
   });
-  it("falls back to the focused console", () => {
-    const r = parseCommand("hello", { ...ctx, focused: "1" });
-    if (r.kind !== "send") throw new Error("expected send");
-    expect(r.targets[0]!.id).toBe("1");
+  it("routes plain text (no @) to the AI dispatcher", () => {
+    expect(parseCommand("  pass this task to codex ", { ...ctx, focused: "1" })).toEqual({
+      kind: "route",
+      instruction: "pass this task to codex",
+    });
   });
   it("errors without target, with unknown target, empty message", () => {
-    expect(parseCommand("hello", ctx).kind).toBe("error");
+    expect(parseCommand("hello", { ...ctx, consoles: ctx.consoles.map((c) => ({ ...c, running: false })) }).kind).toBe("error");
     expect(parseCommand("@nope hi", ctx)).toEqual({ kind: "error", error: "Unknown target @nope" });
     expect(parseCommand("@api", ctx).kind).toBe("error");
     expect(parseCommand("   ", ctx).kind).toBe("error");

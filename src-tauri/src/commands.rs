@@ -258,7 +258,40 @@ pub async fn claude_usage() -> Usage {
         .unwrap_or_default()
 }
 
-/// Summarise console `from` with `claude -p` (user's own subscription) and return the brief.
+/// Run `claude -p` (the user's own subscription) with `prompt` on stdin; return stdout.
+fn claude_print(cwd: std::path::PathBuf, prompt: String, extra: &[&str]) -> Result<String> {
+    let mut a = vec!["-p".to_string()];
+    a.extend(extra.iter().map(|s| s.to_string()));
+    let (program, args) = resolve_spec(LaunchSpec {
+        program: "claude".into(),
+        args: a,
+    })?;
+    let mut cmd = Command::new(program);
+    cmd.args(args)
+        .current_dir(cwd)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    let mut child = cmd.spawn()?;
+    child
+        .stdin
+        .take()
+        .expect("piped")
+        .write_all(prompt.as_bytes())?;
+    let out = child.wait_with_output()?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        return Err(Error::Pty(format!("claude -p failed: {}", err.trim())));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+/// Summarise console `from` with `claude -p` and return the brief.
 #[tauri::command]
 pub async fn handoff_brief(
     state: State<'_, AppState>,
@@ -273,33 +306,25 @@ pub async fn handoff_brief(
     let cwd = state.settings.lock().resolved_cwd();
     tauri::async_runtime::spawn_blocking(move || {
         let prompt = agents::handoff_prompt(&from_title, &to_title, &transcript);
-        let (program, args) = resolve_spec(LaunchSpec {
-            program: "claude".into(),
-            args: vec!["-p".into()],
-        })?;
-        let mut cmd = Command::new(program);
-        cmd.args(args)
-            .current_dir(cwd)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-        }
-        let mut child = cmd.spawn()?;
-        child
-            .stdin
-            .take()
-            .expect("piped")
-            .write_all(prompt.as_bytes())?;
-        let out = child.wait_with_output()?;
-        if !out.status.success() {
-            let err = String::from_utf8_lossy(&out.stderr);
-            return Err(Error::Pty(format!("claude -p failed: {}", err.trim())));
-        }
-        Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+        claude_print(cwd, prompt, &[])
+    })
+    .await
+    .map_err(|e| Error::Pty(e.to_string()))?
+}
+
+/// AI dispatcher: turn a free-form instruction into a send/handoff plan (`claude -p`).
+#[tauri::command]
+pub async fn route_instruction(
+    state: State<'_, AppState>,
+    instruction: String,
+    consoles: Vec<board_core::router::RouterConsole>,
+) -> Result<board_core::router::Plan> {
+    let cwd = state.settings.lock().resolved_cwd();
+    tauri::async_runtime::spawn_blocking(move || {
+        let prompt = board_core::router::router_prompt(&instruction, &consoles);
+        // routing is a small classification job — the fast model is plenty
+        let raw = claude_print(cwd, prompt, &["--model", "haiku"])?;
+        board_core::router::parse_plan(&raw, &consoles)
     })
     .await
     .map_err(|e| Error::Pty(e.to_string()))?

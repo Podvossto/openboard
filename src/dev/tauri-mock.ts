@@ -105,6 +105,17 @@ w.__TAURI_INTERNALS__ = {
         return running.has(args.id as string) ? "resting" : null;
       case "console_transcript":
         return "> build the api\nDone: added /users route. Next: tests.";
+      case "route_instruction": {
+        const ins = String(args.instruction).toLowerCase();
+        const cons = args.consoles as { id: string; title: string; agent: string; status: string; focused: boolean }[];
+        const live = cons.filter((c) => c.status !== "exited");
+        const codex = live.find((c) => c.agent === "codex");
+        const from = live.find((c) => c.focused && c.agent !== "codex") ?? live.find((c) => c.agent === "claude");
+        if (ins.includes("pass") && codex && from && codex.id !== from.id)
+          return { action: "handoff", from: from.id, to: codex.id, reason: "codex takes over" };
+        if (live.length === 0) return { action: "none", reason: "Nothing running." };
+        return { action: "send", targets: [live[0]!.id], message: String(args.instruction), reason: "best match" };
+      }
       case "handoff_brief":
         return "Goal: API. Done: /users route. Next: write tests for /users.";
       case "write_console": {

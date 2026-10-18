@@ -2,7 +2,7 @@
 // CONTRACT: mirrors src-tauri/src/commands.rs. Do not call `invoke` elsewhere.
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { AgentKind, Board, Detected, Settings, Status, Usage } from "./types";
+import type { AgentKind, Board, Detected, RoutePlan, RouterConsole, Settings, Status, Usage } from "./types";
 
 export interface SpawnArgs {
   id: string;
@@ -43,6 +43,8 @@ export const ipc = {
   claudeUsage: () => invoke<Usage>("claude_usage"),
   handoffBrief: (from: string, fromTitle: string, toTitle: string) =>
     invoke<string>("handoff_brief", { from, fromTitle, toTitle }),
+  routeInstruction: (instruction: string, consoles: RouterConsole[]) =>
+    invoke<RoutePlan>("route_instruction", { instruction, consoles }),
 };
 
 export const events = {

@@ -20,6 +20,8 @@ export interface ParseCtx {
 export type Parsed =
   | { kind: "send"; message: string; targets: CtxConsole[]; skipped: CtxConsole[] }
   | { kind: "handoff"; from: CtxConsole; to: CtxConsole }
+  /** no @target: let the AI dispatcher decide (e.g. "pass this task to codex") */
+  | { kind: "route"; instruction: string }
   | { kind: "error"; error: string };
 
 /** "My Group" → "my-group" (what the user types after @) */
@@ -90,9 +92,8 @@ export function parseCommand(input: string, ctx: ParseCtx): Parsed {
   if (!message) return { kind: "error", error: sawMention ? "Add a message after the target." : "Type a message first." };
 
   if (!sawMention) {
-    const f = ctx.focused ? ctx.consoles.find((c) => c.id === ctx.focused) : undefined;
-    if (!f) return { kind: "error", error: "No target — start with @name, @all or @group, or click a console." };
-    targets.push(f);
+    if (!ctx.consoles.some((c) => c.running)) return { kind: "error", error: "Nothing running to send to." };
+    return { kind: "route", instruction: message };
   }
   const live = targets.filter((t) => t.running);
   const skipped = targets.filter((t) => !t.running);

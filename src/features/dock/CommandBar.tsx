@@ -4,6 +4,10 @@ import { ipc, submit } from "../../lib/ipc";
 import { Orb } from "../../components/AgentIcon";
 import { COMMAND_FOCUS_EVENT } from "./commandBus";
 import { applySuggestion, mentionAtCaret, parseCommand, suggest, type ParseCtx } from "./parse";
+import { displayStatus } from "../../store/board";
+import type { RoutePlan, RouterConsole } from "../../lib/types";
+
+type Pending = { instruction: string; plan: Exclude<RoutePlan, { action: "none" }> };
 
 type Result = { tone: "ok" | "warn" | "err"; text: string } | null;
 
@@ -22,6 +26,27 @@ function useParseCtx(): ParseCtx {
   );
 }
 
+/** Snapshot of the active workspace for the dispatcher (read at call time). */
+function useRouterRoster(): () => RouterConsole[] {
+  return useCallback(() => {
+    const s = useBoard.getState();
+    const ws = activeWorkspace(s.board);
+    const groupName = (id?: string) => ws.groups.find((g) => g.id === id)?.name;
+    return ws.consoles.map((c) => {
+      const r = s.runtime[c.id];
+      const kind = c.agent.kind;
+      return {
+        id: c.id,
+        title: c.title,
+        agent: kind === "claudeCode" ? "claude" : kind === "codex" ? "codex" : c.agent.program || "shell",
+        status: r?.running ? displayStatus(r) : "exited",
+        group: groupName(c.group),
+        focused: s.focused === c.id,
+      };
+    });
+  }, []);
+}
+
 export function CommandBar() {
   const ctx = useParseCtx();
   const [text, setText] = useState("");
@@ -30,6 +55,9 @@ export function CommandBar() {
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<Result>(null);
   const [popDismissed, setPopDismissed] = useState(false);
+  const [pending, setPending] = useState<Pending | null>(null);
+  const roster = useRouterRoster();
+  const titleOf = (id: string) => ctx.consoles.find((c) => c.id === id)?.title ?? id;
   const ta = useRef<HTMLTextAreaElement>(null);
   const timer = useRef<number | undefined>(undefined);
 
@@ -81,27 +109,62 @@ export function CommandBar() {
     });
   };
 
+  const handoff = async (fromId: string, toId: string) => {
+    const from = titleOf(fromId);
+    const to = titleOf(toId);
+    setBusy("Summarizing…");
+    const brief = await ipc.handoffBrief(fromId, from, to);
+    await submit(toId, `Handoff from ${from}:\n${brief}`);
+    flash({ tone: "ok", text: `Handed off ${from} → ${to}` });
+  };
+
+  const sendTo = async (ids: string[], message: string, skipped = 0) => {
+    await Promise.all(ids.map((id) => submit(id, message)));
+    const n = ids.length;
+    flash({
+      tone: skipped ? "warn" : "ok",
+      text: `Sent to ${n} console${n === 1 ? "" : "s"}${skipped ? ` · skipped ${skipped} stopped` : ""}`,
+    });
+  };
+
+  const clear = () => {
+    setText("");
+    setCaret(0);
+  };
+
+  const runPending = async () => {
+    if (!pending || busy) return;
+    const { plan } = pending;
+    try {
+      if (plan.action === "handoff") await handoff(plan.from, plan.to);
+      else await sendTo(plan.targets, plan.message);
+      setPending(null);
+      clear();
+    } catch (e) {
+      flash({ tone: "err", text: `Failed: ${String(e)}` });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const send = async () => {
     if (busy) return;
+    if (pending) return void runPending();
     const parsed = parseCommand(text, ctx);
     if (parsed.kind === "error") return flash({ tone: "err", text: parsed.error });
     try {
       if (parsed.kind === "handoff") {
-        setBusy("Summarizing…");
-        const brief = await ipc.handoffBrief(parsed.from.id, parsed.from.title, parsed.to.title);
-        await submit(parsed.to.id, `Handoff from ${parsed.from.title}:\n${brief}`);
-        flash({ tone: "ok", text: `Handed off ${parsed.from.title} → ${parsed.to.title}` });
+        await handoff(parsed.from.id, parsed.to.id);
+        clear();
+      } else if (parsed.kind === "send") {
+        await sendTo(parsed.targets.map((t) => t.id), parsed.message, parsed.skipped.length);
+        clear();
       } else {
-        await Promise.all(parsed.targets.map((t) => submit(t.id, parsed.message)));
-        const n = parsed.targets.length;
-        const skipped = parsed.skipped.length ? ` · skipped ${parsed.skipped.length} stopped` : "";
-        flash({
-          tone: parsed.skipped.length ? "warn" : "ok",
-          text: `Sent to ${n} console${n === 1 ? "" : "s"}${skipped}`,
-        });
+        setBusy("Thinking…");
+        const plan = await ipc.routeInstruction(parsed.instruction, roster());
+        if (plan.action === "none") flash({ tone: "warn", text: plan.reason });
+        else setPending({ instruction: parsed.instruction, plan });
       }
-      setText("");
-      setCaret(0);
     } catch (e) {
       flash({ tone: "err", text: `Failed: ${String(e)}` });
     } finally {
@@ -115,6 +178,11 @@ export function CommandBar() {
       if (e.key === "ArrowUp") { e.preventDefault(); setSel((i) => (i - 1 + options.length) % options.length); return; }
       if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); pick(Math.min(sel, options.length - 1)); return; }
       if (e.key === "Escape") { e.preventDefault(); setPopDismissed(true); return; }
+    }
+    if (pending && e.key === "Escape") {
+      e.preventDefault();
+      setPending(null);
+      return;
     }
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
@@ -143,7 +211,45 @@ export function CommandBar() {
 
   return (
     <div className="relative w-full">
-      {popOpen && (
+      {pending && (
+        <div role="dialog" aria-label="Dispatch plan" className="glass animate-pop absolute bottom-[calc(100%+10px)] left-0 right-0 z-30 rounded-2xl p-4">
+          <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-3">Plan</div>
+          {pending.plan.action === "handoff" ? (
+            <div className="text-[14px] text-ink">
+              Hand off <b>{titleOf(pending.plan.from)}</b> → <b>{titleOf(pending.plan.to)}</b>
+              <span className="text-ink-3"> (summarise with Claude, then send the brief)</span>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2 text-[14px] text-ink">
+              <div className="flex flex-wrap items-center gap-1.5">
+                Send to
+                {pending.plan.targets.map((id) => (
+                  <span key={id} className="rounded-full border border-line-strong bg-surface-3 px-2.5 py-0.5 text-[12.5px] font-semibold">
+                    @{titleOf(id)}
+                  </span>
+                ))}
+              </div>
+              <div className="max-h-28 overflow-y-auto whitespace-pre-wrap rounded-xl border border-line bg-bg/70 px-3 py-2 font-mono text-[12.5px] text-ink-2">
+                {pending.plan.message}
+              </div>
+            </div>
+          )}
+          {pending.plan.reason && <div className="mt-2 text-[12px] text-ink-3">{pending.plan.reason}</div>}
+          <div className="mt-3 flex justify-end gap-2">
+            <button className="h-9 rounded-full px-4 text-[13px] font-semibold text-ink-2 transition hover:bg-surface-3 hover:text-ink" onClick={() => setPending(null)}>
+              Cancel
+            </button>
+            <button
+              autoFocus
+              className="h-9 rounded-full bg-ink px-4 text-[13px] font-semibold text-bg transition hover:bg-white active:scale-95"
+              onClick={() => void runPending()}
+            >
+              Run ↵
+            </button>
+          </div>
+        </div>
+      )}
+      {popOpen && !pending && (
         <div role="listbox" aria-label="Mentions" className="glass animate-pop absolute bottom-[calc(100%+8px)] left-14 z-30 w-72 rounded-xl p-1.5">
           {options.map((o, i) => (
             <button
@@ -179,7 +285,7 @@ export function CommandBar() {
           ref={ta}
           rows={1}
           value={text}
-          placeholder={busy ?? "Message an agent · @ to direct · /handoff @from @to"}
+          placeholder={busy ?? "Tell the board what to do · @ to direct · /handoff @from @to"}
           aria-label="Command bar"
           disabled={!!busy}
           className="max-h-[120px] min-h-[24px] flex-1 resize-none self-center bg-transparent text-[15px] leading-6 text-ink outline-none placeholder:text-ink-3 disabled:opacity-60"
