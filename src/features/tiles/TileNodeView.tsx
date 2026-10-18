@@ -14,6 +14,7 @@ import { KanbanTile } from "./KanbanTile";
 import { WebTile } from "./WebTile";
 import { GitTile } from "./GitTile";
 import { CodeTile } from "./CodeTile";
+import { CalendarTile } from "./CalendarTile";
 
 const MIN: Record<Tile["kind"], [number, number]> = {
   note: [200, 140],
@@ -22,6 +23,7 @@ const MIN: Record<Tile["kind"], [number, number]> = {
   web: [360, 260],
   git: [320, 300],
   code: [300, 200],
+  calendar: [400, 340],
 };
 
 export const TileNodeView = memo(function TileNodeView({ data, selected }: NodeProps<TileFlowNode>) {
@@ -100,6 +102,7 @@ export const TileNodeView = memo(function TileNodeView({ data, selected }: NodeP
         {t.kind === "web" && <WebTile tile={t as Tile<"web">} setData={setData} />}
         {t.kind === "code" && <CodeTile tile={t as Tile<"code">} />}
         {t.kind === "git" && <GitTile tile={t as Tile<"git">} setData={setData} />}
+        {t.kind === "calendar" && <CalendarTile tile={t as Tile<"calendar">} setData={setData} />}
       </div>
     </motion.div>
   );

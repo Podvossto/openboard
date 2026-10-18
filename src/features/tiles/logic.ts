@@ -1,8 +1,9 @@
 // Pure tile logic (no React) — unit-tested in logic.test.ts.
 import type { ChecklistItem, KanbanColumn, Tile, TileData, TileKind } from "../../lib/types";
+import { todayISO } from "./calendar";
 
 let seq = 0;
-/** Local ids for checklist items / kanban cards (tiles themselves use backend uuids). */
+/** Local ids for checklist items / kanban cards / calendar events (tiles themselves use backend uuids). */
 export const localId = (p: string) => `${p}-${Date.now().toString(36)}-${(seq++).toString(36)}`;
 
 export const TILE_META: Record<TileKind, { label: string; w: number; h: number; tint: string }> = {
@@ -12,7 +13,43 @@ export const TILE_META: Record<TileKind, { label: string; w: number; h: number; 
   web: { label: "Web", w: 720, h: 480, tint: "#56d8c9" },
   git: { label: "Git", w: 400, h: 440, tint: "#ff8a5c" },
   code: { label: "Code", w: 520, h: 360, tint: "#c792ea" },
+  calendar: { label: "Calendar", w: 560, h: 460, tint: "#e57ad8" },
 };
+
+/** Web tile device presets ("responsive" fills the tile; others render at exact CSS px). */
+export interface DevicePreset {
+  id: string;
+  label: string;
+  /** null = no fixed viewport (responsive / custom) */
+  w: number | null;
+  h: number | null;
+}
+export const DEVICES: readonly DevicePreset[] = [
+  { id: "responsive", label: "Responsive (fill tile)", w: null, h: null },
+  { id: "iphone-se", label: "iPhone SE", w: 375, h: 667 },
+  { id: "iphone-15-pro", label: "iPhone 15 Pro", w: 393, h: 852 },
+  { id: "pixel-8", label: "Pixel 8", w: 412, h: 915 },
+  { id: "ipad-mini", label: "iPad Mini", w: 768, h: 1024 },
+  { id: "ipad-pro", label: "iPad Pro", w: 1024, h: 1366 },
+  { id: "laptop", label: "Laptop", w: 1366, h: 768 },
+  { id: "desktop", label: "Desktop", w: 1920, h: 1080 },
+] as const;
+/** Web tile zoom choices: "fit" scales to the tile, numbers are fixed factors. */
+export const ZOOMS: readonly (number | "fit")[] = ["fit", 0.5, 0.75, 1] as const;
+
+/** Scale that fits a devW×devH device inside a tileW×tileH viewport (never upscales past 1). */
+export function fitScale(tileW: number, tileH: number, devW: number, devH: number): number {
+  if (tileW <= 0 || tileH <= 0 || devW <= 0 || devH <= 0) return 1;
+  return Math.min(1, tileW / devW, tileH / devH);
+}
+
+/** Preset id the current device dims still belong to (rotation allowed); "custom" otherwise. */
+export function matchPreset(presetId: string | undefined, w: number, h: number): string {
+  if (!presetId || presetId === "custom") return "custom";
+  if (presetId === "responsive") return "responsive";
+  const d = DEVICES.find((x) => x.id === presetId);
+  return d && ((d.w === w && d.h === h) || (d.w === h && d.h === w)) ? d.id : "custom";
+}
 
 export function defaultData<K extends TileKind>(kind: K): TileData[K] {
   const d: { [P in TileKind]: TileData[P] } = {
@@ -28,6 +65,7 @@ export function defaultData<K extends TileKind>(kind: K): TileData[K] {
     web: { url: "http://localhost:5173" },
     git: { cwd: "" },
     code: { root: "", path: "" },
+    calendar: { events: [], view: "month", cursor: todayISO() },
   };
   return d[kind];
 }

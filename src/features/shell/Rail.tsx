@@ -14,6 +14,7 @@ const KINDS: { kind: TileKind; hint: string }[] = [
   { kind: "kanban", hint: "Columns of draggable cards" },
   { kind: "web", hint: "Live localhost preview" },
   { kind: "git", hint: "Branch, changes, commit / push / pull" },
+  { kind: "calendar", hint: "Month / week events" },
 ];
 
 function AddTileButton() {

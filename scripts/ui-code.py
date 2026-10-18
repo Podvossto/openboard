@@ -24,7 +24,7 @@ with sync_playwright() as p:
     # open via rail button
     pg.get_by_role("button", name="Code", exact=True).click()
     dlg = pg.get_by_role("dialog", name="Code studio")
-    dlg.wait_for(timeout=8000)
+    dlg.wait_for(timeout=20000)  # first open lazy-loads the CodeMirror chunk (slow on a cold dev server)
     check(dlg.count() == 1, "Code studio opens from rail")
     tree = dlg.get_by_role("tree", name="Files")
     tree.get_by_role("treeitem", name="src", exact=True).wait_for(timeout=5000)
