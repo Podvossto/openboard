@@ -67,7 +67,7 @@ interface BoardState {
   /** console id with keyboard focus (command bar default target) */
   focused: string | null;
   /** id of console whose "…" menu / rename / settings is open */
-  ui: { settingsOpen: boolean; memoryOpen: boolean; ink: InkTool | null };
+  ui: { settingsOpen: boolean; memoryOpen: boolean; usageAnalyticsOpen: boolean; ink: InkTool | null };
 
   hydrate: (b: Board) => void;
   setSettings: (s: Settings, resolvedCwd: string) => void;
@@ -136,7 +136,7 @@ export const useBoard = create<BoardState>((set) => ({
   runtime: {},
   revision: 0,
   focused: null,
-  ui: { settingsOpen: false, memoryOpen: false, ink: null },
+  ui: { settingsOpen: false, memoryOpen: false, usageAnalyticsOpen: false, ink: null },
 
   hydrate: (board) => set({ board, loaded: true }),
   setSettings: (settings, resolvedCwd) => set({ settings, resolvedCwd }),

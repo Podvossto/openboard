@@ -5,6 +5,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   AccountUsage,
   AgentKind,
+  Analytics,
   KeyStatus,
   ProviderPreset,
   Board,
@@ -73,6 +74,7 @@ export const ipc = {
   syncRoster: (roster: { id: string; title: string; agent: string; group?: string }[]) =>
     invoke<void>("sync_roster", { roster }),
   usageAll: () => invoke<AccountUsage[]>("usage_all"),
+  usageAnalytics: (days: number) => invoke<Analytics>("usage_analytics", { days }),
   gitStatus: (cwd: string) => invoke<GitStatus>("git_status", { cwd }),
   gitRun: (cwd: string, action: GitAction, message = "") => invoke<string>("git_run", { cwd, action, message }),
 };

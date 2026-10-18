@@ -1,0 +1,55 @@
+@reference "../../styles/tailwind.css";
+
+/* Usage analytics sheet — self-contained (same sheet anatomy as Settings). */
+.usage-backdrop {
+  position: fixed; inset: 0; z-index: 100; display: flex; justify-content: flex-end; padding: 12px;
+  background: rgb(5 6 8 / 0.55);
+}
+.usage-panel {
+  width: 780px; max-width: calc(100vw - 24px); height: 100%;
+  display: flex; flex-direction: column;
+  border-radius: 24px !important;
+}
+.usage-head { @apply flex items-center gap-4 border-b border-line px-5 py-4; }
+.usage-head h2 { @apply m-0 flex-1 text-[16px] font-semibold tracking-tight text-ink; }
+.usage-close {
+  @apply grid size-8 place-items-center rounded-full border border-line bg-transparent p-0 text-ink-2 transition hover:bg-surface-3 hover:text-ink;
+}
+.usage-body { @apply flex-1 overflow-y-auto px-5 pb-6 pt-4; }
+.usage-error { @apply m-0 text-[13px] text-ink-3; }
+
+.period-seg { @apply inline-flex gap-1 rounded-full border border-line bg-bg/70 p-1; }
+.period-seg button {
+  @apply h-8 cursor-pointer rounded-full border-0 bg-transparent px-4 text-[12.5px] font-medium text-ink-2 transition hover:text-ink;
+}
+.period-seg button.on { @apply bg-surface-3 font-semibold text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong)]; }
+
+/* 8 stat cards (4 × 2) */
+.stat-grid { @apply grid grid-cols-4 gap-3; }
+.stat-card { @apply flex min-h-[74px] flex-col gap-1 rounded-2xl border border-line bg-surface-2/60 px-3.5 py-3; }
+.stat-label { @apply text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-3; }
+.stat-value { @apply text-[20px] font-semibold leading-tight text-ink; }
+.stat-sub { @apply text-[11.5px] text-ink-3; }
+
+/* chart + heatmap */
+.usage-section { @apply mt-6 rounded-2xl border border-line bg-surface-2/40 p-4; }
+.usage-legend { @apply mb-2 flex items-center gap-4 px-1; }
+.usage-legend-item { @apply flex items-center gap-1.5 text-[12px] font-medium text-ink-2; }
+
+.chart-wrap { @apply relative; }
+.chart-grid { stroke: var(--color-line); stroke-width: 1; }
+.chart-tick { @apply fill-[var(--color-ink-3)] text-[9.5px]; }
+
+.usage-tip {
+  @apply pointer-events-none absolute top-0 z-10 w-[150px] rounded-xl border border-line bg-surface/95 p-2.5 shadow-[0_10px_30px_-8px_rgb(0_0_0/0.6)];
+}
+.usage-tip-date { @apply mb-1.5 text-[11.5px] font-semibold text-ink; }
+.usage-tip-row { @apply flex items-center gap-1.5 text-[11.5px] text-ink-2; }
+.usage-tip-agent { @apply flex-1; }
+.usage-tip-val { @apply font-semibold tabular-nums text-ink; }
+.usage-tip-meta { @apply mt-1.5 border-t border-line/70 pt-1.5 text-[10.5px] text-ink-3; }
+
+.heat-wrap { @apply flex flex-col gap-2; }
+.usage-heat { max-width: 100%; height: auto; }
+.heat-legend { @apply flex items-center gap-1.5 pl-[34px] text-[10.5px] text-ink-3; }
+.heat-swatch { @apply size-[11px] rounded-[3px] border border-line/70; }

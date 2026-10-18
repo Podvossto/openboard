@@ -246,6 +246,37 @@ export interface Usage {
   error: string | null;
 }
 
+/** Usage analytics from local session logs (board-core::analytics). */
+export interface DayStats {
+  /** "YYYY-MM-DD", local time */
+  date: string;
+  /** agent id ("claude", "codex") → tokens */
+  byAgent: Record<string, number>;
+  sessions: number;
+  messages: number;
+}
+
+export interface AnalyticsTotals {
+  tokens: number;
+  sessions: number;
+  messages: number;
+  activeDays: number;
+}
+
+export interface AnalyticsStreaks {
+  current: number;
+  longest: number;
+}
+
+export interface Analytics {
+  /** oldest → newest, zero-filled */
+  days: DayStats[];
+  totals: AnalyticsTotals;
+  streaks: AnalyticsStreaks;
+  peakDay: { date: string; tokens: number } | null;
+  topAgent: { agent: string; tokens: number } | null;
+}
+
 export interface HookLogEntry {
   at: number;
   event: string;

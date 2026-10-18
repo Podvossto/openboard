@@ -34,6 +34,63 @@ let settings = {
 const running = new Set<string>(["c1", "c3"]);
 const log: { cmd: string; args: unknown }[] = [];
 
+/** Deterministic fake usage_analytics for a `days` window (plausible weekday-heavy pattern). */
+function mkAnalytics(days: number) {
+  const today = new Date();
+  const dayStats: {
+    date: string;
+    byAgent: Record<string, number>;
+    sessions: number;
+    messages: number;
+  }[] = [];
+  let tokens = 0, sessions = 0, messages = 0, activeDays = 0, longest = 0, run = 0;
+  let peakDay: { date: string; tokens: number } | null = null;
+  const agentTotals: Record<string, number> = {};
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const r = (d.getDate() * 37 + i * 17) % 101;
+    const idle = i > 0 && (d.getDay() === 0 || d.getDay() === 6) && r < 45; // idle weekends
+    const claude = idle ? 0 : 18_000 + r * 2_300;
+    const codex = idle || r % 4 === 0 ? 0 : 2_400 + r * 170;
+    const byAgent: Record<string, number> = {};
+    if (claude) byAgent.claude = claude;
+    if (codex) byAgent.codex = codex;
+    const total = claude + codex;
+    const sess = total === 0 ? 0 : 1 + (r % 4);
+    const msgs = total === 0 ? 0 : 8 + (r % 40);
+    if (total > 0) {
+      activeDays++;
+      run++;
+      longest = Math.max(longest, run);
+      if (!peakDay || total > peakDay.tokens) peakDay = { date: iso, tokens: total };
+      agentTotals.claude = (agentTotals.claude ?? 0) + claude;
+      agentTotals.codex = (agentTotals.codex ?? 0) + codex;
+    } else {
+      run = 0;
+    }
+    tokens += total;
+    sessions += sess;
+    messages += msgs;
+    dayStats.push({ date: iso, byAgent, sessions: sess, messages: msgs });
+  }
+  let current = 0;
+  let idx = dayStats.length - 1;
+  if (dayStats[idx] && Object.keys(dayStats[idx]!.byAgent).length === 0) idx--;
+  while (idx >= 0 && dayStats[idx] && Object.keys(dayStats[idx]!.byAgent).length > 0) {
+    current++;
+    idx--;
+  }
+  const top = Object.entries(agentTotals).sort((a, b) => b[1] - a[1])[0] ?? null;
+  return {
+    days: dayStats,
+    totals: { tokens, sessions, messages, activeDays },
+    streaks: { current, longest },
+    peakDay,
+    topAgent: top ? { agent: top[0], tokens: top[1] } : null,
+  };
+}
+
 function emit(event: string, payload: unknown) {
   for (const cb of listeners[event] ?? []) cb({ event, payload, id: 0 });
 }
@@ -43,7 +100,7 @@ function send(id: string, s: string) {
 }
 const w = window as unknown as Record<string, unknown>;
 w.__ipcLog = log;
-w.__mock = { emit, send, running };
+w.__mock = { emit, send, running, analytics: mkAnalytics };
 w.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => undefined };
 w.__TAURI_INTERNALS__ = {
   transformCallback(cb: (d: unknown) => void) {
@@ -115,6 +172,8 @@ w.__TAURI_INTERNALS__ = {
         return null;
       case "claude_usage":
         return { session: { percent: 34, resetsAt: new Date(Date.now() + 2 * 3600e3).toISOString() }, weekly: { percent: 71, resetsAt: null }, error: null };
+      case "usage_analytics":
+        return mkAnalytics(Number(args.days) || 30);
       case "attach_console": {
         const id = args.id as string;
         if (!running.has(id)) return false;
