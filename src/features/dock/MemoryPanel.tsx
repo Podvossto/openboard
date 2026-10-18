@@ -1,3 +1,5 @@
+import { motion } from "motion/react";
+import { fadeVariants, sheetVariants } from "../../lib/motion";
 import { useEffect, useRef, useState } from "react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { activeWorkspace, useBoard } from "../../store/board";
@@ -52,8 +54,8 @@ export function MemoryPanel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="sheet-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="panel sheet" role="dialog" aria-label="Workspace memory">
+    <motion.div className="sheet-backdrop" variants={fadeVariants} initial="initial" animate="animate" exit="exit" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <motion.aside variants={sheetVariants} className="panel sheet" role="dialog" aria-label="Workspace memory">
         <header className="sheet-head">
           <h2>Memory <span className="sheet-sub">· {wsName}</span></h2>
           <button className="btn icon ghost" aria-label="Close" title="Close (Esc)" onClick={onClose}>×</button>
@@ -79,7 +81,7 @@ export function MemoryPanel({ onClose }: { onClose: () => void }) {
           {info && <span className="sheet-info" role="status">{info}</span>}
           <button className="btn primary" onClick={() => void sendAll()}>Send to all running</button>
         </footer>
-      </aside>
-    </div>
+      </motion.aside>
+    </motion.div>
   );
 }

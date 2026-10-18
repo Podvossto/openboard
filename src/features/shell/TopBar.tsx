@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
+import { AnimatePresence, motion } from "motion/react";
+import { popVariants, spring } from "../../lib/motion";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { ipc } from "../../lib/ipc";
 import type { AccountUsage, Usage, Workspace } from "../../lib/types";
@@ -65,7 +67,7 @@ function Tab({ ws, active, canRemove }: { ws: Workspace; active: boolean; canRem
 
   return (
     <div
-      className={`ws-tab group/tab relative flex h-8 max-w-[200px] shrink-0 cursor-pointer items-center gap-1 rounded-full pl-3.5 pr-1.5 text-[13px] font-medium transition-all duration-150 ${active ? "active bg-surface-3 text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong)]" : "text-ink-3 hover:bg-surface-2 hover:text-ink"}`}
+      className={`ws-tab group/tab relative flex h-8 max-w-[200px] shrink-0 cursor-pointer items-center gap-1 rounded-full pl-3.5 pr-1.5 text-[13px] font-medium transition-colors duration-150 ${active ? "active text-ink" : "text-ink-3 hover:bg-surface-2 hover:text-ink"}`}
       role="tab"
       aria-selected={active}
       tabIndex={0}
@@ -83,9 +85,16 @@ function Tab({ ws, active, canRemove }: { ws: Workspace; active: boolean; canRem
         }
       }}
     >
-      <span className="truncate">{ws.name}</span>
+      {active && (
+        <motion.span
+          layoutId="ws-tab-active"
+          transition={spring.layout}
+          className="absolute inset-0 -z-0 rounded-full bg-surface-3 shadow-[inset_0_0_0_1px_var(--color-line-strong)]"
+        />
+      )}
+      <span className="relative truncate">{ws.name}</span>
       <button
-        className="grid size-5 place-items-center rounded-full text-ink-3 opacity-0 transition hover:bg-danger/15 hover:text-danger group-hover/tab:opacity-100 focus-visible:opacity-100 disabled:hidden"
+        className="relative grid size-5 place-items-center rounded-full text-ink-3 opacity-0 transition hover:bg-danger/15 hover:text-danger group-hover/tab:opacity-100 focus-visible:opacity-100 disabled:hidden"
         disabled={!canRemove}
         aria-label={`Remove workspace ${ws.name}`}
         title={canRemove ? "Remove workspace" : "Can't remove the only workspace"}
@@ -159,8 +168,18 @@ function UsagePill() {
         <span className="tabular-nums text-ink">{usageLabel(main.usage, shortName(main))}</span>
         {readable.length > 1 && <span className="rounded-full bg-surface-3 px-1.5 text-[10.5px] text-ink-2">+{readable.length - 1}</span>}
       </button>
+      <AnimatePresence>
       {open && (
-        <div role="dialog" aria-label="Usage by account" className="glass animate-pop absolute right-0 top-[calc(100%+8px)] z-50 w-[340px] rounded-2xl p-2">
+        <motion.div
+          variants={popVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          style={{ transformOrigin: "top right" }}
+          role="dialog"
+          aria-label="Usage by account"
+          className="glass absolute right-0 top-[calc(100%+8px)] z-50 w-[340px] rounded-2xl p-2"
+        >
           <div className="px-2.5 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-3">Plan usage</div>
           {all.map((a) => {
             const lv = a.usage.error ? "idle" : usageLevel(a.usage);
@@ -194,8 +213,9 @@ function UsagePill() {
               </div>
             );
           })}
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -253,7 +273,11 @@ export function TopBar() {
         onClick={onClick}
       >
         <span className={`size-2 rounded-full ${color} ${tone === "working" && n > 0 ? "animate-pulse" : ""}`} />
-        {n}
+        <AnimatePresence mode="popLayout" initial={false}>
+          <motion.span key={n} initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 10, opacity: 0 }} transition={spring.snappy}>
+            {n}
+          </motion.span>
+        </AnimatePresence>
         <span className="font-medium text-ink-3">{label}</span>
       </Tag>
     );

@@ -13,6 +13,8 @@ import {
 import { emptyGroupFrame, planGroupFromConsoles } from "../board/grouping";
 import { CommandBar } from "./CommandBar";
 import { AgentIcon, CatalogIcon } from "../../components/AgentIcon";
+import { AnimatePresence, motion } from "motion/react";
+import { popVariants } from "../../lib/motion";
 import { useDismiss } from "./useDismiss";
 import { ComposeGroup } from "./ComposeGroup";
 
@@ -184,15 +186,25 @@ export function Dock() {
           </div>
         )}
 
-        {menu === "compose" && (
-          <div className="absolute bottom-[calc(100%+12px)] right-0">
-            <ComposeGroup onBack={() => setMenu(null)} onSpawn={(n, m) => void spawn(n, m)} />
-          </div>
-        )}
+        <AnimatePresence>
+          {menu === "compose" && (
+            <motion.div
+              key="compose"
+              variants={popVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              style={{ transformOrigin: "bottom center" }}
+              className="absolute bottom-[calc(100%+12px)] right-0"
+            >
+              <ComposeGroup onBack={() => setMenu(null)} onSpawn={(n, m) => void spawn(n, m)} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <HintChip />
 
-        <div className="flex flex-wrap items-center justify-center gap-2">
+        <div className="dock-row flex flex-wrap items-center justify-center gap-2">
           <div className="relative">
             <button
               className="ring-pill"

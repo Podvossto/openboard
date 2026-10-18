@@ -3,6 +3,7 @@ import { useLoops } from "../features/loops/useLoops";
 import { useOrchestrator } from "../features/orchestrator/useOrchestrator";
 import { useEffect, useState } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
+import { AnimatePresence, MotionConfig } from "motion/react";
 import { Board } from "../features/board/Board";
 import { TopBar } from "../features/shell/TopBar";
 import { Rail } from "../features/shell/Rail";
@@ -44,6 +45,7 @@ export function App() {
 
   if (!loaded) return <div className="splash">Agent Board</div>;
   return (
+    <MotionConfig reducedMotion="user">
     <ReactFlowProvider>
       <div className="app">
         <TopBar />
@@ -62,9 +64,12 @@ export function App() {
             <Dock />
           </main>
         </div>
-        {ui.settingsOpen && <SettingsPanel onClose={() => useBoard.getState().setUi({ settingsOpen: false })} />}
-        {ui.memoryOpen && <MemoryPanel onClose={() => useBoard.getState().setUi({ memoryOpen: false })} />}
+        <AnimatePresence>
+          {ui.settingsOpen && <SettingsPanel key="settings" onClose={() => useBoard.getState().setUi({ settingsOpen: false })} />}
+          {ui.memoryOpen && <MemoryPanel key="memory" onClose={() => useBoard.getState().setUi({ memoryOpen: false })} />}
+        </AnimatePresence>
       </div>
     </ReactFlowProvider>
+    </MotionConfig>
   );
 }

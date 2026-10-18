@@ -1,6 +1,9 @@
 import { ConsoleAgentIcon } from "../../components/AgentIcon";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
+import { useStore } from "@xyflow/react";
+import { motion } from "motion/react";
+import { spring } from "../../lib/motion";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import type { ConsoleNode } from "../../lib/types";
@@ -11,6 +14,24 @@ import { canResume, shortPath } from "./helpers";
 import { terminalControls } from "./controls";
 
 type Phase = "attaching" | "live" | "stopped";
+
+const selectZoom = (s: { transform: [number, number, number] }) => s.transform[2];
+
+/** xterm font size that renders crisply at board zoom `z` (≥ 1px, 0.25px steps). */
+export function renderFont(base: number, z: number): number {
+  return Math.max(1, Math.round(base * z * 4) / 4);
+}
+
+/** Zoom that only updates once the user stops zooming (avoid re-rasterising every frame). */
+function useSettledZoom(live: number, ms = 140): number {
+  const [z, setZ] = useState(live);
+  useEffect(() => {
+    if (live === z) return;
+    const t = setTimeout(() => setZ(Math.round(live * 100) / 100), ms);
+    return () => clearTimeout(t);
+  }, [live, z, ms]);
+  return z;
+}
 
 const inflight = new Set<string>();
 
@@ -25,6 +46,9 @@ function cssVar(name: string, fallback: string): string {
  */
 export function TerminalView({ console: c }: { console: ConsoleNode }) {
   const host = useRef<HTMLDivElement>(null);
+  const outer = useRef<HTMLDivElement>(null);
+  const fitNow = useRef<(() => void) | null>(null);
+  const zoomChanging = useRef(false);
   const term = useRef<Terminal | null>(null);
   const fit = useRef<FitAddon | null>(null);
   const cRef = useRef(c);
@@ -37,19 +61,28 @@ export function TerminalView({ console: c }: { console: ConsoleNode }) {
   const fontSize = useBoard((s) => s.settings.fontSize);
   const resolvedCwd = useBoard((s) => s.resolvedCwd);
 
+  // Crisp text at any board zoom: React Flow scales the whole board with a CSS transform, which
+  // makes glyphs resampled (blurry) at zoom ≠ 1. We counter-scale the terminal host by 1/zoom and
+  // render xterm at fontSize × zoom, so glyphs are rasterised at their on-screen pixel size.
+  // The grid (cols × rows) stays the same, so zooming never resizes the PTY.
+  const liveZoom = useStore(selectZoom);
+  const zoom = useSettledZoom(liveZoom);
+  const zoomRef = useRef(zoom);
+
   // Create xterm once per console.
   useEffect(() => {
+    const z0 = zoomRef.current;
     const t = new Terminal({
       fontFamily: cssVar("--mono", "monospace"),
-      fontSize: useBoard.getState().settings.fontSize,
+      fontSize: renderFont(useBoard.getState().settings.fontSize, z0),
       cursorBlink: true,
       allowProposedApi: true,
       scrollback: 10000,
       theme: {
-        background: "#0e0f12",
+        background: "#0b0c0f",
         foreground: cssVar("--text", "#e3e6ee"),
         cursor: cssVar("--accent", "#7c9cff"),
-        cursorAccent: "#0e0f12",
+        cursorAccent: "#0b0c0f",
         selectionBackground: "rgba(124, 156, 255, 0.3)",
       },
     });
@@ -70,10 +103,13 @@ export function TerminalView({ console: c }: { console: ConsoleNode }) {
         /* host not laid out yet */
       }
     };
+    fitNow.current = doFit;
     const ro = new ResizeObserver(() => {
+      // a zoom-only change resizes the (counter-scaled) host too — keep the grid as is
+      if (zoomChanging.current) return;
       if (!raf) raf = requestAnimationFrame(doFit);
     });
-    ro.observe(host.current!);
+    ro.observe(outer.current!);
     doFit();
     return () => {
       if (raf) cancelAnimationFrame(raf);
@@ -85,16 +121,26 @@ export function TerminalView({ console: c }: { console: ConsoleNode }) {
     };
   }, [c.id]);
 
-  // Live font-size changes from Settings.
+  // Re-rasterise when zoom settles (font × zoom), keeping cols/rows unchanged.
+  useEffect(() => {
+    zoomRef.current = zoom;
+    const t = term.current;
+    if (!t) return;
+    const want = renderFont(fontSize, zoom);
+    if (t.options.fontSize === want) return;
+    const { cols, rows } = t;
+    zoomChanging.current = true;
+    t.options.fontSize = want;
+    t.resize(cols, rows);
+    requestAnimationFrame(() => requestAnimationFrame(() => (zoomChanging.current = false)));
+  }, [zoom, fontSize]);
+
+  // Live font-size changes from Settings → refit (grid may change).
   useEffect(() => {
     const t = term.current;
-    if (!t || t.options.fontSize === fontSize) return;
-    t.options.fontSize = fontSize;
-    try {
-      fit.current?.fit();
-    } catch {
-      /* ignore */
-    }
+    if (!t) return;
+    t.options.fontSize = renderFont(fontSize, zoomRef.current);
+    fitNow.current?.();
   }, [fontSize]);
 
   const attach = useCallback(async () => {
@@ -199,10 +245,20 @@ export function TerminalView({ console: c }: { console: ConsoleNode }) {
 
   return (
     <div className="terminal-wrap" onMouseDown={() => useBoard.getState().setFocused(c.id)}>
-      <div ref={host} className="terminal-host" />
+      <div ref={outer} className="terminal-host">
+        <div
+          ref={host}
+          className="terminal-scale"
+          style={{
+            width: `${zoom * 100}%`,
+            height: `${zoom * 100}%`,
+            transform: zoom === 1 ? undefined : `scale(${1 / zoom})`,
+          }}
+        />
+      </div>
       {showOverlay && (
-        <div className="console-overlay absolute inset-0 grid place-items-center bg-bg/80 backdrop-blur-sm" role="dialog" aria-label="Start console">
-          <div className="glass animate-rise flex min-w-[300px] max-w-[90%] flex-col items-center gap-2 rounded-3xl px-10 py-8 text-center">
+        <div className="console-overlay absolute inset-0 grid place-items-center bg-[#0b0c0f]/92" role="dialog" aria-label="Start console">
+          <motion.div initial={{ opacity: 0, y: 10, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={spring.soft} className="flex min-w-[300px] max-w-[90%] flex-col items-center gap-2 rounded-2xl border border-line bg-surface px-10 py-8 text-center shadow-[0_20px_50px_-20px_rgb(0_0_0/0.9)]">
             <span className="mb-1 grid size-14 place-items-center rounded-2xl border border-line-strong bg-black/30 shadow-[0_0_30px_-8px_var(--tint)]">
               <ConsoleAgentIcon agent={c.agent} size={30} />
             </span>
@@ -236,7 +292,7 @@ export function TerminalView({ console: c }: { console: ConsoleNode }) {
                 Start new
               </button>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
       {busy && !running && (

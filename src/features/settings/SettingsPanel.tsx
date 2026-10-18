@@ -1,3 +1,5 @@
+import { motion } from "motion/react";
+import { fadeVariants, sheetVariants } from "../../lib/motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { ipc } from "../../lib/ipc";
@@ -216,8 +218,8 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const choice = choiceOf(draft.defaultAgent);
 
   return (
-    <div className="sheet-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="panel sheet" role="dialog" aria-modal="true" aria-label="Settings">
+    <motion.div className="sheet-backdrop" variants={fadeVariants} initial="initial" animate="animate" exit="exit" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <motion.aside variants={sheetVariants} className="panel sheet" role="dialog" aria-modal="true" aria-label="Settings">
         <header className="sheet-head">
           <h2>Settings</h2>
           <span className={`saved${saved ? " show" : ""}${saveErr ? " err" : ""}`} role="status">
@@ -370,7 +372,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             />
           </section>
         </div>
-      </aside>
-    </div>
+      </motion.aside>
+    </motion.div>
   );
 }

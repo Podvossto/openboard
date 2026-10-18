@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { activeWorkspace, useBoard } from "../../store/board";
 import { ipc, submit } from "../../lib/ipc";
 import { Orb } from "../../components/AgentIcon";
+import { AnimatePresence, motion } from "motion/react";
+import { popVariants } from "../../lib/motion";
 import { COMMAND_FOCUS_EVENT } from "./commandBus";
 import { applySuggestion, mentionAtCaret, parseCommand, suggest, type ParseCtx } from "./parse";
 import { displayStatus } from "../../store/board";
@@ -113,6 +115,7 @@ export function CommandBar() {
     const from = titleOf(fromId);
     const to = titleOf(toId);
     setBusy("Summarizing…");
+    useBoard.getState().flash(fromId, toId, "handoff");
     const brief = await ipc.handoffBrief(fromId, from, to);
     await submit(toId, `Handoff from ${from}:\n${brief}`);
     flash({ tone: "ok", text: `Handed off ${from} → ${to}` });
@@ -211,8 +214,19 @@ export function CommandBar() {
 
   return (
     <div className="relative w-full">
+      <AnimatePresence>
       {pending && (
-        <div role="dialog" aria-label="Dispatch plan" className="glass animate-pop absolute bottom-[calc(100%+10px)] left-0 right-0 z-30 rounded-2xl p-4">
+        <motion.div
+          key="plan"
+          variants={popVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          style={{ transformOrigin: "bottom center" }}
+          role="dialog"
+          aria-label="Dispatch plan"
+          className="glass absolute bottom-[calc(100%+10px)] left-0 right-0 z-30 rounded-2xl p-4"
+        >
           <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-3">Plan</div>
           {pending.plan.action === "handoff" ? (
             <div className="text-[14px] text-ink">
@@ -247,8 +261,9 @@ export function CommandBar() {
               Run ↵
             </button>
           </div>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
       {popOpen && !pending && (
         <div role="listbox" aria-label="Mentions" className="glass animate-pop absolute bottom-[calc(100%+8px)] left-14 z-30 w-72 rounded-xl p-1.5">
           {options.map((o, i) => (

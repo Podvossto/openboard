@@ -8,9 +8,13 @@ import { autoStart } from "../../lib/actions";
 import { ipc } from "../../lib/ipc";
 import { useDismiss } from "../dock/useDismiss";
 import { focusCommandBar } from "../dock/commandBus";
+import { motion } from "motion/react";
+import { spring } from "../../lib/motion";
+import { removeAnimated } from "../../lib/removeAnimated";
 
 export const GroupNodeView = memo(function GroupNodeView({ data, selected }: NodeProps<GroupFlowNode>) {
   const g = data.group;
+  const leaving = useBoard((s) => !!s.leaving[g.id]);
   const memberIds = useBoard((s) =>
     activeWorkspace(s.board)
       .consoles.filter((c) => c.group === g.id)
@@ -64,13 +68,18 @@ export const GroupNodeView = memo(function GroupNodeView({ data, selected }: Nod
       if (st.runtime[c.id]?.running) await ipc.kill(c.id).catch(() => undefined);
       st.removeConsole(c.id);
     }
-    st.removeGroup(g.id);
+    removeAnimated("group", g.id);
   };
 
   const mentionName = g.name.replace(/\s+/g, "-");
 
   return (
-    <div className={`group-frame ${selected ? "selected" : ""}`} style={{ ["--gc" as string]: g.color }}>
+    <motion.div
+      className={`group-frame ${selected ? "selected" : ""}`}
+      style={{ ["--gc" as string]: g.color }}
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={leaving ? { opacity: 0, scale: 0.97, transition: { duration: 0.18 } } : { opacity: 1, scale: 1, transition: spring.soft }}
+    >
       <NodeResizer isVisible={selected} minWidth={320} minHeight={160} lineStyle={{ borderColor: g.color }} handleClassName="!size-2.5 !rounded-full !border-0" handleStyle={{ background: g.color }} />
       <div className="group-header flex h-11 cursor-grab items-center gap-2.5 pl-4 pr-2 active:cursor-grabbing">
         <span className="size-2.5 shrink-0 rounded-full shadow-[0_0_10px_var(--gc)]" style={{ background: g.color }} />
@@ -143,7 +152,7 @@ export const GroupNodeView = memo(function GroupNodeView({ data, selected }: Nod
               <button
                 className="menu-item"
                 role="menuitem"
-                onClick={() => { setMenu(null); useBoard.getState().removeGroup(g.id); }}
+                onClick={() => { setMenu(null); removeAnimated("group", g.id); }}
               >
                 Ungroup
               </button>
@@ -170,7 +179,7 @@ export const GroupNodeView = memo(function GroupNodeView({ data, selected }: Nod
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 });
 

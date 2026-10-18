@@ -6,6 +6,8 @@ import type { ConsoleNode } from "../../lib/types";
 import { canResume, relativeTime } from "./helpers";
 import { terminalControls } from "./controls";
 import { LoopEditor } from "../loops/LoopEditor";
+import { AnimatePresence, motion } from "motion/react";
+import { popVariants } from "../../lib/motion";
 import { profilesFor } from "../settings/profiles";
 
 interface Props {
@@ -125,8 +127,18 @@ export function ConsoleMenu({ c, onRename, onClose }: Props) {
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
       </button>
       {loopOpen && <LoopEditor c={c} onClose={() => setLoopOpen(false)} />}
+      <AnimatePresence>
       {open_ && (
-        <div className="menu console-menu glass animate-pop !rounded-xl !border-line !bg-transparent" role="menu">
+        <motion.div
+          key="menu"
+          variants={popVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          style={{ transformOrigin: "top right" }}
+          className="menu console-menu glass !rounded-xl !border-line !bg-transparent"
+          role="menu"
+        >
           <button className="menu-item" role="menuitem" onClick={run(onRename)}>
             Rename
           </button>
@@ -227,8 +239,9 @@ export function ConsoleMenu({ c, onRename, onClose }: Props) {
           <button className="menu-item danger" role="menuitem" onClick={run(onClose)}>
             Remove from board
           </button>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
       {diag && (
         <div className="menu console-diag glass animate-pop !rounded-xl !border-line !bg-transparent" role="dialog" aria-label="Diagnostics">
           <div className="menu-label">Claude hook events</div>

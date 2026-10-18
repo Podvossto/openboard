@@ -1,6 +1,9 @@
 import { memo, useState } from "react";
 import { NodeResizer, type NodeProps } from "@xyflow/react";
 import { useBoard } from "../../store/board";
+import { motion } from "motion/react";
+import { nodeVariants } from "../../lib/motion";
+import { removeAnimated } from "../../lib/removeAnimated";
 import type { Tile } from "../../lib/types";
 import type { TileFlowNode } from "../board/nodes";
 import { TILE_META } from "./logic";
@@ -27,8 +30,12 @@ export const TileNodeView = memo(function TileNodeView({ data, selected }: NodeP
   const patch = (p: Partial<Tile>) => useBoard.getState().patchTile(t.id, p);
   const setData = (d: Tile["data"]) => patch({ data: d });
 
+  const leaving = useBoard((s) => !!s.leaving[t.id]);
   return (
-    <div
+    <motion.div
+      variants={nodeVariants}
+      initial="initial"
+      animate={leaving ? "exit" : "animate"}
       className={`tile group/tile flex h-full w-full flex-col overflow-hidden rounded-[18px] border bg-surface shadow-[0_24px_60px_-24px_rgb(0_0_0/0.85)] transition-shadow ${
         selected ? "border-transparent" : "border-line"
       }`}
@@ -77,7 +84,7 @@ export const TileNodeView = memo(function TileNodeView({ data, selected }: NodeP
           className="nodrag grid size-7 place-items-center rounded-full text-ink-3 opacity-0 transition hover:bg-surface-3 hover:text-danger group-hover/tile:opacity-100 focus-visible:opacity-100"
           title={`Remove ${meta.label.toLowerCase()}`}
           aria-label={`Remove ${t.title}`}
-          onClick={() => useBoard.getState().removeTile(t.id)}
+          onClick={() => removeAnimated("tile", t.id)}
         >
           <svg width="12" height="12" viewBox="0 0 14 14" aria-hidden="true">
             <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
@@ -91,6 +98,6 @@ export const TileNodeView = memo(function TileNodeView({ data, selected }: NodeP
         {t.kind === "web" && <WebTile tile={t as Tile<"web">} setData={setData} />}
         {t.kind === "git" && <GitTile tile={t as Tile<"git">} setData={setData} />}
       </div>
-    </div>
+    </motion.div>
   );
 });

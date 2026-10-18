@@ -47,7 +47,12 @@ with sync_playwright() as p:
         pg.wait_for_timeout(50)
     goal_calls = [e for e in pg.evaluate("window.__ipcLog") if e["cmd"] == "loop_goal_check"]
     check(len(goal_calls) >= 2, f"goal checked ({len(goal_calls)}x)")
-    check(web.get_by_label("Loop running").count() == 0, "loop stopped after goal met")
+    # Fake clock doesn't drive motion's exit animation, so assert on the persisted state instead
+    # (badge exit is covered with a real clock in ui-motion.py).
+    pg.clock.run_for(1500)
+    saves = [e for e in pg.evaluate("window.__ipcLog") if e["cmd"] == "save_board"]
+    loops = [c.get("loop") for w in (saves[-1]["args"]["board"]["workspaces"] if saves else []) for c in w["consoles"] if c.get("loop")]
+    check(bool(loops) and loops[0]["enabled"] is False and loops[0]["stoppedReason"].startswith("Goal met"), "loop stopped after goal met")
     web.get_by_role("button", name="More").click()
     web.get_by_role("menuitem", name="Loop…").click()
     check("Goal met" in web.get_by_role("dialog", name="Loop").inner_text(), "stop reason shown")

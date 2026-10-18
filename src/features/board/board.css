@@ -35,3 +35,9 @@
   background: transparent !important; border: 0 !important; padding: 0 !important; box-shadow: none !important; border-radius: 16px;
 }
 .react-flow__node-group.selectable:hover, .react-flow__node-group.selected { box-shadow: none !important; }
+
+/* Programmatic moves (group / ungroup / spawn layout) glide; user drags stay 1:1. */
+.react-flow__node { transition: transform 420ms var(--ease-spring), width 320ms var(--ease-spring), height 320ms var(--ease-spring); }
+.react-flow__node.dragging,
+.react-flow.is-resizing .react-flow__node,
+.react-flow__node:has(.react-flow__resize-control:active) { transition: none; }

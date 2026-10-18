@@ -112,6 +112,14 @@ interface BoardState {
   /** console ids that just received work from a lead (transient glow) */
   pulses: Record<string, number>;
   pulse: (id: string) => void;
+  /** recent lead→worker sends / handoffs (drive animated edges) */
+  flashes: { from: string; to: string; kind: "lead" | "handoff"; at: number }[];
+  /** lead id → console ids it has sent work to (this session) */
+  contacted: Record<string, string[]>;
+  flash: (from: string, to: string, kind: "lead" | "handoff") => void;
+  /** node ids playing their exit animation */
+  leaving: Record<string, true>;
+  setLeaving: (id: string, on: boolean) => void;
   setUi: (patch: Partial<BoardState["ui"]>) => void;
 }
 
@@ -259,6 +267,24 @@ export const useBoard = create<BoardState>((set) => ({
       return { runtime: { ...s.runtime, [id]: { ...prev, hooks } } };
     }),
   setFocused: (focused) => set({ focused }),
+  flashes: [],
+  contacted: {},
+  flash: (from, to, kind) =>
+    set((s) => {
+      const now = Date.now();
+      const flashes = [...s.flashes.filter((f) => now - f.at < 8000), { from, to, kind, at: now }];
+      const prev = s.contacted[from] ?? [];
+      const contacted = kind === "lead" && !prev.includes(to) ? { ...s.contacted, [from]: [...prev, to] } : s.contacted;
+      return { flashes, contacted };
+    }),
+  leaving: {},
+  setLeaving: (id, on) =>
+    set((s) => {
+      const leaving = { ...s.leaving };
+      if (on) leaving[id] = true;
+      else delete leaving[id];
+      return { leaving };
+    }),
   pulses: {},
   pulse: (id) => {
     const at = Date.now();

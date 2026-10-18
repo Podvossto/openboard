@@ -1,18 +1,21 @@
 import { memo, useState } from "react";
-import { NodeResizer, type NodeProps } from "@xyflow/react";
+import { Handle, NodeResizer, Position, type NodeProps } from "@xyflow/react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import type { ConsoleFlowNode } from "../board/nodes";
 import { displayStatus, useBoard } from "../../store/board";
 import { ConsoleAgentIcon } from "../../components/AgentIcon";
 import { ipc } from "../../lib/ipc";
-import { STATUS_LABEL } from "./statusStyle";
+import { STATUS_COLOR, STATUS_LABEL } from "./statusStyle";
+import { AnimatePresence, motion } from "motion/react";
+import { nodeVariants, spring } from "../../lib/motion";
+import { removeAnimated } from "../../lib/removeAnimated";
 import { TerminalView } from "./TerminalView";
 import { ConsoleMenu } from "./ConsoleMenu";
 import { useNeedsYouAlert } from "./useNeedsYouAlert";
 import { shortPath } from "./helpers";
 import "./console.css";
 
-export const ConsoleNodeView = memo(function ConsoleNodeView({ data, selected }: NodeProps<ConsoleFlowNode>) {
+export const ConsoleNodeView = memo(function ConsoleNodeView({ data, selected, dragging: dragging_ }: NodeProps<ConsoleFlowNode>) {
   const c = data.console;
   const rt = useBoard((s) => s.runtime[c.id]);
   const blink = useBoard((s) => s.settings.blinkNeedsYou);
@@ -30,7 +33,7 @@ export const ConsoleNodeView = memo(function ConsoleNodeView({ data, selected }:
       if (!ok) return;
       await ipc.kill(c.id).catch(() => undefined);
     }
-    useBoard.getState().removeConsole(c.id);
+    removeAnimated("console", c.id);
   };
 
   const commit = (value: string) => {
@@ -46,27 +49,35 @@ export const ConsoleNodeView = memo(function ConsoleNodeView({ data, selected }:
   const profile = useBoard((s) => (c.profile ? s.settings.profiles?.find((p) => p.id === c.profile) : undefined));
   const tint =
     c.agent.kind === "claudeCode" ? "var(--color-claude)" : c.agent.kind === "codex" ? "var(--color-codex)" : "var(--color-ink-3)";
-  const statusTone: Record<string, string> = {
-    working: "border-info/40 bg-info/10 text-info",
-    resting: "border-ok/35 bg-ok/10 text-ok",
-    needsYou: "border-warn/60 bg-warn/15 text-warn",
-    starting: "border-line text-ink-3",
-    exited: "border-line text-ink-3",
-  };
+
+  const leaving = useBoard((s) => !!s.leaving[c.id]);
+  const dragging = !!dragging_;
 
   return (
-    <div
+    <motion.div
       className={`console group/console${selected ? " selected" : ""}${attention ? " attention" : ""}${pulsing ? " pulsing" : ""}`}
-      style={{ ["--tint" as string]: tint }}
+      style={{ ["--tint" as string]: tint, ["--status" as string]: STATUS_COLOR[status] }}
+      variants={nodeVariants}
+      initial="initial"
+      animate={leaving ? "exit" : "animate"}
+      whileHover={dragging ? undefined : { y: -2, transition: spring.snappy }}
+      data-status={status}
     >
-      <NodeResizer isVisible={selected} minWidth={360} minHeight={220} lineClassName="!border-accent/40" handleClassName="!size-2.5 !rounded-full !border-0 !bg-accent" />
-      <div className="console-header flex h-11 shrink-0 cursor-grab items-center gap-2.5 px-3 active:cursor-grabbing">
-        <span className="grid size-7 shrink-0 place-items-center rounded-lg border border-line bg-black/30">
-          <ConsoleAgentIcon agent={c.agent} size={16} />
+      <NodeResizer
+        isVisible={selected}
+        minWidth={360}
+        minHeight={220}
+        lineClassName="!border-transparent"
+        handleClassName="console-handle"
+      />
+      <div className="console-header flex h-10 shrink-0 cursor-grab items-center gap-2 pl-3 pr-1.5 active:cursor-grabbing">
+        <StatusDot status={status} />
+        <span className="grid size-6 shrink-0 place-items-center">
+          <ConsoleAgentIcon agent={c.agent} size={15} />
         </span>
         {editing ? (
           <input
-            className="nodrag h-7 w-36 rounded-full border border-accent/70 bg-bg px-3 text-[13px] font-semibold text-ink outline-none"
+            className="nodrag h-7 w-36 rounded-md border border-accent/70 bg-bg px-2 text-[13px] font-semibold text-ink outline-none"
             autoFocus
             defaultValue={c.title}
             onFocus={(e) => e.target.select()}
@@ -77,57 +88,115 @@ export const ConsoleNodeView = memo(function ConsoleNodeView({ data, selected }:
             }}
           />
         ) : (
-          <span className="min-w-0 max-w-[40%] truncate text-[13.5px] font-semibold text-ink" title="Double-click to rename" onDoubleClick={() => setEditing(true)}>
+          <span className="min-w-0 max-w-[38%] truncate text-[13px] font-semibold text-ink" title="Double-click to rename" onDoubleClick={() => setEditing(true)}>
             {c.title}
           </span>
         )}
         <span
-          className={`min-w-0 flex-1 truncate font-mono text-[11.5px] ${c.cwd ? "text-ink-3" : "italic text-ink-3/70"}`}
+          className={`min-w-0 flex-1 truncate font-mono text-[11px] ${c.cwd ? "text-ink-3" : "italic text-ink-3/70"}`}
           title={c.cwd || resolvedCwd}
         >
           {cwdText}
         </span>
-        {c.lead && (
-          <span
-            className="flex h-6 shrink-0 items-center gap-1 rounded-full border border-warn/45 bg-warn/10 px-2 text-[11px] font-bold uppercase tracking-[0.06em] text-warn"
-            title="Orchestrator lead — can list, message, read and spawn other consoles"
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 18h18l-2-10-4.5 4L12 5l-2.5 7L5 8z" /></svg>
-            Lead
-          </span>
-        )}
-        {profile && (
-          <span
-            className="flex h-6 max-w-28 shrink-0 items-center gap-1.5 truncate rounded-full border px-2 text-[11px] font-semibold"
-            style={{ borderColor: `color-mix(in srgb, ${profile.color} 45%, transparent)`, color: profile.color }}
-            title={`Account: ${profile.name}`}
-          >
-            <span className="size-1.5 shrink-0 rounded-full" style={{ background: profile.color }} />
-            <span className="truncate">{profile.name}</span>
-          </span>
-        )}
-        {c.loop?.enabled && (
-          <span
-            className="flex h-6 shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 text-[11px] font-semibold text-accent"
-            title={`Loop: ${c.loop.message} · ${c.loop.runs}${c.loop.maxRuns ? `/${c.loop.maxRuns}` : ""} runs`}
-            aria-label="Loop running"
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true" className="animate-spin [animation-duration:3s]">
-              <path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7" />
-            </svg>
-            {c.loop.runs}
-            {c.loop.maxRuns ? `/${c.loop.maxRuns}` : ""}
-          </span>
-        )}
-        <span className={`pill ${status} flex h-6 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[11.5px] font-semibold ${statusTone[status]}`}>
-          <span className={`status-dot ${status} size-1.5 rounded-full bg-current`} />
-          {STATUS_LABEL[status]}
-        </span>
+        <AnimatePresence initial={false}>
+          {c.lead && (
+            <Badge key="lead" className="border-warn/45 bg-warn/10 text-warn" title="Orchestrator lead — can list, message, read and spawn other consoles">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 18h18l-2-10-4.5 4L12 5l-2.5 7L5 8z" /></svg>
+              Lead
+            </Badge>
+          )}
+          {profile && (
+            <Badge key="profile" title={`Account: ${profile.name}`} style={{ borderColor: `color-mix(in srgb, ${profile.color} 45%, transparent)`, color: profile.color }}>
+              <span className="size-1.5 shrink-0 rounded-full" style={{ background: profile.color }} />
+              <span className="max-w-24 truncate">{profile.name}</span>
+            </Badge>
+          )}
+          {c.loop?.enabled && (
+            <Badge
+              key="loop"
+              className="border-accent/40 bg-accent/10 text-accent"
+              title={`Loop: ${c.loop.message} · ${c.loop.runs}${c.loop.maxRuns ? `/${c.loop.maxRuns}` : ""} runs`}
+              aria-label="Loop running"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true" className="animate-spin [animation-duration:3s]">
+                <path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7" />
+              </svg>
+              {c.loop.runs}
+              {c.loop.maxRuns ? `/${c.loop.maxRuns}` : ""}
+            </Badge>
+          )}
+        </AnimatePresence>
+        <StatusChip status={status} />
         <ConsoleMenu c={c} onRename={() => setEditing(true)} onClose={remove} />
       </div>
+      {/* invisible anchors for orchestrator edges */}
+      <Handle type="target" position={Position.Left} className="console-anchor" isConnectable={false} />
+      <Handle type="source" position={Position.Right} className="console-anchor" isConnectable={false} />
       <div className="console-body nodrag nowheel nopan">
         <TerminalView console={c} />
       </div>
-    </div>
+    </motion.div>
   );
 });
+
+/** Status chip that morphs (width + colour + label crossfade) between states. */
+function StatusChip({ status }: { status: string }) {
+  return (
+    <motion.span
+      layout
+      transition={spring.layout}
+      className="status-chip flex h-[22px] shrink-0 items-center overflow-hidden rounded-md border px-2 font-mono text-[10.5px] font-semibold uppercase tracking-[0.08em]"
+      animate={{
+        color: STATUS_COLOR[status as keyof typeof STATUS_COLOR],
+        borderColor: `color-mix(in srgb, ${STATUS_COLOR[status as keyof typeof STATUS_COLOR]} 40%, transparent)`,
+        backgroundColor: `color-mix(in srgb, ${STATUS_COLOR[status as keyof typeof STATUS_COLOR]} 10%, transparent)`,
+      }}
+    >
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.span
+          key={status}
+          initial={{ y: 8, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -8, opacity: 0 }}
+          transition={spring.snappy}
+        >
+          {STATUS_LABEL[status as keyof typeof STATUS_LABEL]}
+        </motion.span>
+      </AnimatePresence>
+    </motion.span>
+  );
+}
+
+/** Live dot: breathes while working, rings while it needs you. */
+function StatusDot({ status }: { status: string }) {
+  const color = STATUS_COLOR[status as keyof typeof STATUS_COLOR];
+  return (
+    <span className="relative grid size-2.5 shrink-0 place-items-center" aria-hidden="true">
+      {(status === "working" || status === "needsYou") && (
+        <motion.span
+          className="absolute inset-0 rounded-full"
+          style={{ background: color }}
+          animate={{ scale: [1, 2.4], opacity: [0.55, 0] }}
+          transition={{ duration: status === "needsYou" ? 1.1 : 1.6, repeat: Infinity, ease: "easeOut" }}
+        />
+      )}
+      <motion.span className="relative size-2 rounded-full" animate={{ backgroundColor: color }} transition={{ duration: 0.25 }} />
+    </span>
+  );
+}
+
+function Badge({ children, className = "", ...rest }: React.ComponentProps<typeof motion.span>) {
+  return (
+    <motion.span
+      layout
+      initial={{ opacity: 0, scale: 0.7 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.7 }}
+      transition={spring.snappy}
+      className={`flex h-[22px] shrink-0 items-center gap-1 rounded-md border px-1.5 text-[10.5px] font-bold uppercase tracking-[0.06em] ${className}`}
+      {...rest}
+    >
+      {children}
+    </motion.span>
+  );
+}

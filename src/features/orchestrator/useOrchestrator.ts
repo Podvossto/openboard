@@ -51,11 +51,13 @@ export function useOrchestrator() {
       const st = useBoard.getState();
       const lead = st.board.workspaces.flatMap((w) => w.consoles).find((c) => c.id === from);
       const id = await createConsole(a, { title, cwd: lead?.cwd ?? "" });
+      useBoard.getState().flash(from, id, "lead");
       if (task.trim()) pending.set(id, task);
     });
 
-    const offSent = events.onOrchestratorSent(({ to }) => {
+    const offSent = events.onOrchestratorSent(({ from, to }) => {
       useBoard.getState().pulse(to);
+      useBoard.getState().flash(from, to, "lead");
     });
 
     return () => {
