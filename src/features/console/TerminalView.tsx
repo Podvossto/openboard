@@ -12,6 +12,7 @@ import { autoStart } from "../../lib/actions";
 import { agentLabel, useBoard } from "../../store/board";
 import { canResume, shortPath } from "./helpers";
 import { terminalControls } from "./controls";
+import { launchConsole, launchInflight, terminalSizes } from "./launch";
 
 type Phase = "attaching" | "live" | "stopped";
 
@@ -33,8 +34,6 @@ function useSettledZoom(live: number, ms = 140): number {
   return z;
 }
 
-const inflight = new Set<string>();
-
 function cssVar(name: string, fallback: string): string {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return v || fallback;
@@ -51,8 +50,6 @@ export function TerminalView({ console: c }: { console: ConsoleNode }) {
   const zoomChanging = useRef(false);
   const term = useRef<Terminal | null>(null);
   const fit = useRef<FitAddon | null>(null);
-  const cRef = useRef(c);
-  cRef.current = c;
   const [phase, setPhase] = useState<Phase>("attaching");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +90,10 @@ export function TerminalView({ console: c }: { console: ConsoleNode }) {
     term.current = t;
     fit.current = f;
     const data = t.onData((d) => void ipc.write(c.id, d).catch(() => undefined));
-    const res = t.onResize(({ cols, rows }) => void ipc.resize(c.id, cols, rows).catch(() => undefined));
+    const res = t.onResize(({ cols, rows }) => {
+      terminalSizes.set(c.id, { cols, rows });
+      void ipc.resize(c.id, cols, rows).catch(() => undefined);
+    });
     let raf = 0;
     const doFit = () => {
       raf = 0;
@@ -155,50 +155,36 @@ export function TerminalView({ console: c }: { console: ConsoleNode }) {
 
   const start = useCallback(
     async (resume: boolean) => {
-      if (inflight.has(c.id)) return;
-      inflight.add(c.id);
+      if (launchInflight.has(c.id)) return;
       setBusy(true);
       setError(null);
-      const st = useBoard.getState();
       try {
-        if (st.runtime[c.id]?.running) {
-          await ipc.kill(c.id).catch(() => undefined);
-          await new Promise((r) => setTimeout(r, 150));
-        }
-        const node = cRef.current;
-        let agentSession = node.agentSession;
-        if (node.agent.kind === "claudeCode" && !resume) {
-          agentSession = await ipc.newId();
-          st.patchConsole(c.id, { agentSession });
-        }
-        try {
-          fit.current?.fit();
-        } catch {
-          /* ignore */
-        }
-        const t = term.current;
-        t?.reset();
-        st.setRuntime(c.id, { status: "starting", exitCode: undefined });
-        await ipc.spawn({
-          id: c.id,
-          agent: node.agent,
-          cwd: cRef.current.cwd,
-          cols: t?.cols ?? 80,
-          rows: t?.rows ?? 24,
-          agentSession,
-          resume,
-          profile: node.profile,
-          lead: node.lead,
+        const ok = await launchConsole(c.id, resume, {
+          cols: term.current?.cols,
+          rows: term.current?.rows,
+          // read the refs at call time — the terminal may have been recreated
+          // (StrictMode remount) or disposed (console removed) while we awaited
+          prepare: () => {
+            try {
+              fit.current?.fit();
+            } catch {
+              /* ignore */
+            }
+            term.current?.reset();
+          },
         });
-        if (await attach()) {
-          setPhase("live");
-          term.current?.focus();
+        if (ok) {
+          if (await attach()) {
+            setPhase("live");
+            term.current?.focus();
+          } else {
+            setPhase("stopped");
+          }
         }
       } catch (e) {
         setError(String(e));
         setPhase("stopped");
       } finally {
-        inflight.delete(c.id);
         setBusy(false);
       }
     },
@@ -221,7 +207,7 @@ export function TerminalView({ console: c }: { console: ConsoleNode }) {
       void start(false);
       return;
     }
-    if (inflight.has(c.id)) return;
+    if (launchInflight.has(c.id)) return;
     attach()
       .then((ok) => !cancelled && setPhase(ok ? "live" : "stopped"))
       .catch((e) => {
@@ -234,6 +220,19 @@ export function TerminalView({ console: c }: { console: ConsoleNode }) {
       cancelled = true;
     };
   }, [c.id, attach, start]);
+
+  // Relaunched from outside (Dock "Resume all" / app-start auto-resume): the PTY came
+  // up after our own attach failed — subscribe now that it is running.
+  useEffect(() => {
+    if (!running || phase === "live" || busy || launchInflight.has(c.id)) return;
+    let cancelled = false;
+    attach()
+      .then((ok) => !cancelled && setPhase(ok ? "live" : "stopped"))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [running, phase, busy, attach, c.id]);
 
   useEffect(() => {
     if (!busy && phase === "live" && !running) setPhase("stopped");

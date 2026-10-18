@@ -68,15 +68,18 @@ with sync_playwright() as p:
     src = web.locator("iframe").get_attribute("src")
     check(src == "http://localhost:1423/", f"web tile iframe src normalized ({src})")
 
-    # git
+    # git (tabbed card: stage checkbox + commit on Changes)
     git = add(pg, "Git")
     pg.wait_for_timeout(500)
-    check(git.get_by_text("dev", exact=True).count() >= 1 and git.get_by_text("feat: AI dispatcher").count() == 1, "git card shows branch + commits")
+    check(git.get_by_text("dev", exact=True).count() >= 1, "git card shows branch")
+    git.get_by_role("checkbox", name="Stage notes.md").click()
+    pg.wait_for_timeout(300)
     git.get_by_label("Commit message").fill("wip")
-    git.get_by_role("button", name="Commit all").click()
+    git.get_by_role("button", name="Commit", exact=True).click()
     pg.wait_for_timeout(400)
     log = pg.evaluate("window.__ipcLog")
-    check(any(e["cmd"] == "git_run" and e["args"].get("action") == "commitAll" for e in log), "git commit-all invoked")
+    check(any(e["cmd"] == "git_stage" and e["args"].get("paths") == ["notes.md"] for e in log), "git stage invoked")
+    check(any(e["cmd"] == "git_commit" and e["args"].get("message") == "wip" for e in log), "git commit invoked")
 
     # remove a tile
     note.hover()

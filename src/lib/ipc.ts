@@ -10,6 +10,8 @@ import type {
   Board,
   Detected,
   GitAction,
+  GitBranch,
+  GitGraph,
   GoalVerdict,
   GitStatus,
   RoutePlan,
@@ -75,6 +77,14 @@ export const ipc = {
   usageAll: () => invoke<AccountUsage[]>("usage_all"),
   gitStatus: (cwd: string) => invoke<GitStatus>("git_status", { cwd }),
   gitRun: (cwd: string, action: GitAction, message = "") => invoke<string>("git_run", { cwd, action, message }),
+  gitStage: (cwd: string, paths: string[]) => invoke<void>("git_stage", { cwd, paths }),
+  gitUnstage: (cwd: string, paths: string[]) => invoke<void>("git_unstage", { cwd, paths }),
+  /** commits the index as-is — stage paths first with gitStage */
+  gitCommit: (cwd: string, message: string) => invoke<string>("git_commit", { cwd, message }),
+  gitBranches: (cwd: string) => invoke<GitBranch[]>("git_branches", { cwd }),
+  gitCheckout: (cwd: string, branch: string) => invoke<void>("git_checkout", { cwd, branch }),
+  gitCreateBranch: (cwd: string, name: string) => invoke<void>("git_create_branch", { cwd, name }),
+  gitGraph: (cwd: string, limit = 60) => invoke<GitGraph>("git_graph", { cwd, limit }),
 };
 
 export const events = {

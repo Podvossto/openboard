@@ -27,6 +27,9 @@ pub struct Settings {
     pub font_size: u16,
     /// Show Claude plan usage in the top bar (reads Claude Code's own token, read-only).
     pub show_usage: bool,
+    /// On app start, relaunch every stopped console that has a resumable session.
+    #[serde(default)]
+    pub auto_resume: bool,
     /// Extra accounts / providers (keys are in the OS credential store, never here).
     pub profiles: Vec<crate::profiles::Profile>,
 }
@@ -43,6 +46,7 @@ impl Default for Settings {
             blink_needs_you: true,
             font_size: 13,
             show_usage: true,
+            auto_resume: false,
             profiles: vec![],
         }
     }
@@ -111,6 +115,9 @@ mod tests {
         let l = st.load();
         assert_eq!(l.font_size, 11);
         assert!(l.blink_needs_you);
+        assert!(!l.auto_resume); // serde default: off unless the user turns it on
+        fs::write(d.path().join("settings.json"), br#"{"autoResume": true}"#).unwrap();
+        assert!(st.load().auto_resume);
         fs::write(d.path().join("settings.json"), b"garbage").unwrap();
         assert_eq!(st.load(), Settings::default());
     }

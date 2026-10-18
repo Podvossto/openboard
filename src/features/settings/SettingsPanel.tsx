@@ -309,6 +309,16 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
                 onBlur={() => setFontText(String(clampFont(Number(fontText || draft.fontSize))))}
               />
             </div>
+
+            <Switch
+              label="Resume consoles on launch"
+              checked={draft.autoResume}
+              onChange={(v) => patch({ autoResume: v })}
+            />
+            <p className="help">
+              When Agent Board starts, every stopped console that has a session to resume (Claude with a
+              session id, Codex) is relaunched automatically.
+            </p>
           </section>
 
           <section className="set-section">

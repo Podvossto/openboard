@@ -29,10 +29,60 @@ let board: unknown = {
 };
 let settings = {
   defaultCwd: "", defaultAgent: { kind: "claudeCode" }, shell: "", claudeArgs: [], codexArgs: [],
-  notifyNeedsYou: true, blinkNeedsYou: true, fontSize: 13, showUsage: true,
+  notifyNeedsYou: true, blinkNeedsYou: true, fontSize: 13, showUsage: true, autoResume: false,
 };
 const running = new Set<string>(["c1", "c3"]);
 const log: { cmd: string; args: unknown }[] = [];
+
+// Fake git repo backing the git tile: 2 branches + a merge of a side lane.
+const gitRepo = {
+  branch: "dev",
+  branches: [
+    { name: "dev", current: true },
+    { name: "main", current: false },
+  ],
+  changes: [
+    { code: ".M", path: "src/App.tsx" },
+    { code: "??", path: "notes.md" },
+  ] as { code: string; path: string }[],
+  commits: [
+    { hash: "e7f3a91", parents: ["9c2d4f0", "048d070"], subject: "Merge branch 'graph-lanes'", author: "Dev", relTime: "2 minutes ago", refs: ["HEAD -> dev"] },
+    { hash: "9c2d4f0", parents: ["048d070"], subject: "feat: lane assignment", author: "Dev", relTime: "1 hour ago", refs: [] },
+    { hash: "048d070", parents: ["f6414bd"], subject: "feat: AI dispatcher", author: "Dev", relTime: "3 hours ago", refs: ["main"] },
+    { hash: "f6414bd", parents: ["3aafe73"], subject: "feat(ui): Tailwind restyle", author: "Dev", relTime: "5 hours ago", refs: [] },
+    { hash: "3aafe73", parents: [], subject: "feat(phase-3): tiles + loops", author: "Dev", relTime: "1 day ago", refs: [] },
+  ],
+};
+
+/** Same lane assignment the Rust side does (crates/board-core/src/git.rs `lanes`). */
+function assignLanes(commits: typeof gitRepo.commits) {
+  const active: (string | undefined)[] = [];
+  const lanes: number[] = [];
+  const free = () => {
+    const i = active.indexOf(undefined);
+    if (i >= 0) return i;
+    active.push(undefined);
+    return active.length - 1;
+  };
+  for (const c of commits) {
+    const hits = active.map((e, i) => (e === c.hash ? i : -1)).filter((i) => i >= 0);
+    const lane = hits.length ? hits[0]! : free();
+    lanes.push(lane);
+    for (const extra of hits.slice(1)) active[extra] = undefined;
+    active[lane] = undefined;
+    const [p0, ...rest] = c.parents;
+    if (p0 && !active.includes(p0)) active[lane] = p0;
+    for (const p of rest) if (!active.includes(p)) active[free()] = p;
+  }
+  const index = new Map(commits.map((c, i) => [c.hash, i]));
+  const edges = commits.flatMap((c, i) =>
+    c.parents
+      .map((p) => index.get(p))
+      .filter((j): j is number => j !== undefined)
+      .map((j) => ({ from: lanes[i]!, to: lanes[j]!, fromRow: i, toRow: j })),
+  );
+  return { commits, lanes, edges, laneCount: active.length };
+}
 
 function emit(event: string, payload: unknown) {
   for (const cb of listeners[event] ?? []) cb({ event, payload, id: 0 });
@@ -153,20 +203,50 @@ w.__TAURI_INTERNALS__ = {
       }
       case "git_status":
         return {
-          branch: "dev",
-          upstream: "origin/dev",
+          branch: gitRepo.branch,
+          upstream: `origin/${gitRepo.branch}`,
           ahead: 2,
           behind: 0,
-          changes: [
-            { code: ".M", path: "src/App.tsx" },
-            { code: "??", path: "notes.md" },
-          ],
-          commits: [
-            { hash: "048d070", subject: "feat: AI dispatcher", when: "5 minutes ago" },
-            { hash: "f6414bd", subject: "feat(ui): Tailwind restyle", when: "1 hour ago" },
-          ],
-          branches: ["dev", "main"],
+          changes: gitRepo.changes.map((c) => ({ ...c })),
+          commits: gitRepo.commits.slice(0, 8).map((c) => ({ hash: c.hash, subject: c.subject, when: c.relTime })),
+          branches: gitRepo.branches.map((b) => b.name),
         };
+      case "git_stage":
+      case "git_unstage": {
+        const stage = cmd === "git_stage";
+        for (const p of args.paths as string[]) {
+          const c = gitRepo.changes.find((x) => x.path === p);
+          if (!c) continue;
+          if (stage) c.code = c.code === "??" ? "A." : c.code[1] === "M" ? "M." : c.code;
+          else c.code = c.code === "A." ? "??" : c.code[0] === "M" ? ".M" : c.code;
+        }
+        return null;
+      }
+      case "git_commit": {
+        const staged = gitRepo.changes.filter((c) => c.code !== "??" && c.code[0] !== " " && c.code[0] !== ".");
+        if (!staged.length) throw new Error("git: nothing to commit");
+        const msg = String(args.message).trim();
+        const head = gitRepo.commits[0]!;
+        const hash = Math.random().toString(16).slice(2, 9);
+        head.refs = head.refs.filter((r) => !r.includes("HEAD ->"));
+        gitRepo.commits.unshift({ hash, parents: [head.hash], subject: msg, author: "Dev", relTime: "just now", refs: [`HEAD -> ${gitRepo.branch}`] });
+        gitRepo.changes = gitRepo.changes.filter((c) => !staged.includes(c));
+        return `[${gitRepo.branch} ${hash}] ${msg}`;
+      }
+      case "git_branches":
+        return gitRepo.branches.map((b) => ({ ...b }));
+      case "git_checkout": {
+        const b = gitRepo.branches.find((x) => x.name === args.branch);
+        if (!b) throw new Error(`git: pathspec '${String(args.branch)}' did not match`);
+        for (const x of gitRepo.branches) x.current = x.name === b.name;
+        gitRepo.branch = b.name;
+        return null;
+      }
+      case "git_create_branch":
+        gitRepo.branches.push({ name: String(args.name), current: false });
+        return null;
+      case "git_graph":
+        return assignLanes(gitRepo.commits.slice(0, (args.limit as number) ?? 60).map((c) => ({ ...c, refs: [...c.refs], parents: [...c.parents] })));
       case "git_run":
         return args.action === "commitAll" ? `[dev abc1234] ${String(args.message)}` : "Everything up-to-date";
       case "handoff_brief":
@@ -190,6 +270,9 @@ w.__TAURI_INTERNALS__ = {
       case "plugin:dialog|ask":
       case "plugin:dialog|confirm":
         return true;
+      case "plugin:dialog|message":
+        // plugin-dialog ask()/confirm() compare the result to the button label
+        return String(args.buttons) === "YesNo" ? "Yes" : "Ok";
       case "plugin:dialog|open":
         return "C:/dev/picked";
       case "plugin:notification|is_permission_granted":

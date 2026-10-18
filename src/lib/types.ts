@@ -145,6 +145,34 @@ export interface GitStatus {
   branches: string[];
 }
 export type GitAction = "pull" | "push" | "commitAll";
+export interface GitBranch {
+  name: string;
+  current: boolean;
+}
+export interface GitGraphCommit {
+  hash: string;
+  parents: string[];
+  subject: string;
+  author: string;
+  relTime: string;
+  /** decorations: "HEAD -> dev", "origin/main" … */
+  refs: string[];
+}
+export interface GitLaneEdge {
+  /** lane of the child (upper) commit */
+  from: number;
+  /** lane of the parent (lower) commit */
+  to: number;
+  fromRow: number;
+  toRow: number;
+}
+export interface GitGraph {
+  /** topo-ordered, newest first (same order `lanes` is indexed by) */
+  commits: GitGraphCommit[];
+  lanes: number[];
+  edges: GitLaneEdge[];
+  laneCount: number;
+}
 
 export interface PresetMember {
   title: string;
@@ -174,6 +202,8 @@ export interface Settings {
   blinkNeedsYou: boolean;
   fontSize: number;
   showUsage: boolean;
+  /** on app start, relaunch every stopped console with a resumable session */
+  autoResume: boolean;
   profiles: Profile[];
 }
 

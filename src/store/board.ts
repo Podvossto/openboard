@@ -38,6 +38,7 @@ export const DEFAULT_SETTINGS: Settings = {
   blinkNeedsYou: true,
   fontSize: 13,
   showUsage: true,
+  autoResume: false,
   profiles: [],
 };
 

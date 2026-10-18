@@ -12,6 +12,7 @@ import { SettingsPanel } from "../features/settings/SettingsPanel";
 import { MemoryPanel } from "../features/dock/MemoryPanel";
 import { useBoardRuntime } from "../features/console/useBoardRuntime";
 import { useAutosave } from "../features/board/useAutosave";
+import { resumeAll } from "../features/console/launch";
 import { ipc } from "../lib/ipc";
 import { useBoard } from "../store/board";
 
@@ -21,11 +22,14 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    ipc
+    const settingsP = ipc
       .loadSettings()
-      .then(({ settings, resolvedCwd }) => useBoard.getState().setSettings(settings, resolvedCwd))
-      .catch(() => undefined);
-    ipc
+      .then(({ settings, resolvedCwd }) => {
+        useBoard.getState().setSettings(settings, resolvedCwd);
+        return settings;
+      })
+      .catch(() => null);
+    const boardP = ipc
       .loadBoard()
       .then(({ board, recoveredFromBackup }) => {
         useBoard.getState().hydrate(board);
@@ -36,6 +40,15 @@ export function App() {
         setNotice(`Could not load workspace: ${String(e)}`);
         useBoard.getState().hydrate(useBoard.getState().board);
       });
+    // Settings toggle: once the board is loaded and on screen, relaunch resumable consoles.
+    void Promise.all([settingsP, boardP]).then(([s]) => {
+      if (!s?.autoResume) return;
+      window.setTimeout(() => {
+        void resumeAll().then((n) => {
+          if (n) setNotice(`Resumed ${n} console${n === 1 ? "" : "s"}.`);
+        });
+      }, 400);
+    });
   }, []);
 
   useBoardRuntime();
