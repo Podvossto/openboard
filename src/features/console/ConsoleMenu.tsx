@@ -5,6 +5,7 @@ import { ipc, submit } from "../../lib/ipc";
 import type { ConsoleNode } from "../../lib/types";
 import { canResume, relativeTime } from "./helpers";
 import { terminalControls } from "./controls";
+import { LoopEditor } from "../loops/LoopEditor";
 
 interface Props {
   c: ConsoleNode;
@@ -16,23 +17,26 @@ interface Props {
 export function ConsoleMenu({ c, onRename, onClose }: Props) {
   const [open_, setOpen] = useState(false);
   const [diag, setDiag] = useState(false);
+  const [loopOpen, setLoopOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const running = useBoard((s) => s.runtime[c.id]?.running ?? false);
   const hooks = useBoard((s) => s.runtime[c.id]?.hooks);
   const memory = useBoard((s) => activeWorkspace(s.board).memory);
 
   useEffect(() => {
-    if (!open_ && !diag) return;
+    if (!open_ && !diag && !loopOpen) return;
     const down = (e: MouseEvent) => {
       if (!root.current?.contains(e.target as Node)) {
         setOpen(false);
         setDiag(false);
+        setLoopOpen(false);
       }
     };
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setOpen(false);
         setDiag(false);
+        setLoopOpen(false);
       }
     };
     document.addEventListener("mousedown", down, true);
@@ -41,7 +45,7 @@ export function ConsoleMenu({ c, onRename, onClose }: Props) {
       document.removeEventListener("mousedown", down, true);
       document.removeEventListener("keydown", key);
     };
-  }, [open_, diag]);
+  }, [open_, diag, loopOpen]);
 
   // Focus first item when the menu opens; arrow-key navigation.
   useEffect(() => {
@@ -98,11 +102,13 @@ export function ConsoleMenu({ c, onRename, onClose }: Props) {
         aria-expanded={open_}
         onClick={() => {
           setDiag(false);
+          setLoopOpen(false);
           setOpen((v) => !v);
         }}
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
       </button>
+      {loopOpen && <LoopEditor c={c} onClose={() => setLoopOpen(false)} />}
       {open_ && (
         <div className="menu console-menu glass animate-pop !rounded-xl !border-line !bg-transparent" role="menu">
           <button className="menu-item" role="menuitem" onClick={run(onRename)}>
@@ -113,6 +119,16 @@ export function ConsoleMenu({ c, onRename, onClose }: Props) {
           </button>
           <button className="menu-item" role="menuitem" onClick={run(() => terminalControls.get(c.id)?.start(false))}>
             Restart
+          </button>
+          <button
+            className="menu-item"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              setLoopOpen(true);
+            }}
+          >
+            {c.loop?.enabled ? "Loop (running)…" : "Loop…"}
           </button>
           <button
             className="menu-item"

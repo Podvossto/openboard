@@ -8,6 +8,7 @@ import type {
   Group,
   HookLogEntry,
   Preset,
+  Tile,
   Settings,
   Status,
   Viewport,
@@ -78,6 +79,11 @@ interface BoardState {
   addConsoles: (c: ConsoleNode[]) => void;
   removeConsole: (id: string) => void;
   patchConsole: (id: string, patch: Partial<ConsoleNode>) => void;
+
+  // tiles (note / checklist / kanban / web / git) — active workspace
+  addTile: (t: Tile) => void;
+  patchTile: (id: string, patch: Partial<Tile>) => void;
+  removeTile: (id: string) => void;
 
   // groups
   addGroup: (g: Group) => void;
@@ -168,6 +174,22 @@ export const useBoard = create<BoardState>((set) => ({
       revision: s.revision + 1,
     })),
 
+  addTile: (t) =>
+    set((s) => ({ board: withActive(s.board, (w) => ({ ...w, tiles: [...(w.tiles ?? []), t] })), revision: s.revision + 1 })),
+  patchTile: (id, patch) =>
+    set((s) => ({
+      board: withActive(s.board, (w) => ({
+        ...w,
+        tiles: (w.tiles ?? []).map((t) => (t.id === id ? ({ ...t, ...patch } as Tile) : t)),
+      })),
+      revision: s.revision + 1,
+    })),
+  removeTile: (id) =>
+    set((s) => ({
+      board: withActive(s.board, (w) => ({ ...w, tiles: (w.tiles ?? []).filter((t) => t.id !== id) })),
+      revision: s.revision + 1,
+    })),
+
   addGroup: (g) =>
     set((s) => ({ board: withActive(s.board, (w) => ({ ...w, groups: [...w.groups, g] })), revision: s.revision + 1 })),
   patchGroup: (id, patch) =>
@@ -184,6 +206,9 @@ export const useBoard = create<BoardState>((set) => ({
           groups: w.groups.filter((x) => x.id !== id),
           consoles: w.consoles.map((c) =>
             c.group === id && g ? { ...c, group: undefined, x: c.x + g.x, y: c.y + g.y } : c,
+          ),
+          tiles: (w.tiles ?? []).map((t) =>
+            t.group === id && g ? { ...t, group: undefined, x: t.x + g.x, y: t.y + g.y } : t,
           ),
         };
       }),
@@ -268,6 +293,7 @@ export function boardBottom(ws: Workspace): number {
   const ys = [
     ...ws.consoles.filter((c) => !c.group).map((c) => c.y + c.height),
     ...ws.groups.map((g) => g.y + g.height),
+    ...(ws.tiles ?? []).filter((t) => !t.group).map((t) => t.y + t.height),
   ];
   return ys.length ? Math.max(...ys) + GAP * 2 : 0;
 }

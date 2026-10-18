@@ -57,3 +57,38 @@ export function Orb({ busy = false }: { busy?: boolean }) {
     />
   );
 }
+
+const CAT_TINT: Record<string, string> = {
+  gemini: "#6aa8ff", opencode: "#c9cbd6", aider: "#5fd4a8", qwen: "#8b7bff", copilot: "#c8d0ff",
+  cursor: "#e8e8ee", amp: "#ff6a5c", goose: "#f2d45a", crush: "#ff7ac8", grok: "#e6e6e6", kimi: "#7cc4ff", droid: "#ffa45c",
+};
+
+/** program → catalog id (for consoles started from the catalog) */
+export const PROGRAM_TO_CATALOG: Record<string, string> = {
+  gemini: "gemini", opencode: "opencode", aider: "aider", qwen: "qwen", copilot: "copilot", "cursor-agent": "cursor",
+  amp: "amp", goose: "goose", crush: "crush", grok: "grok", kimi: "kimi", droid: "droid",
+};
+
+/** Letter tile (original, not vendor logos) tinted per agent. */
+export function CatalogIcon({ id, size = 15 }: { id: string; size?: number }) {
+  const tint = CAT_TINT[id] ?? "#a9aab6";
+  return (
+    <span
+      aria-hidden="true"
+      className="grid shrink-0 place-items-center rounded-[5px] font-bold"
+      style={{ width: size, height: size, fontSize: size * 0.62, color: tint, boxShadow: `inset 0 0 0 1.5px ${tint}` }}
+    >
+      {id[0]!.toUpperCase()}
+    </span>
+  );
+}
+
+/** Icon for any console agent: built-ins, catalog CLIs, else the shell glyph. */
+export function ConsoleAgentIcon({ agent, size = 16 }: { agent: AgentKind; size?: number }) {
+  if (agent.kind === "custom") {
+    const base = agent.program.split(/[\\/]/).pop()!.replace(/\.(exe|cmd|bat)$/i, "");
+    const id = PROGRAM_TO_CATALOG[base];
+    if (id) return <CatalogIcon id={id} size={size} />;
+  }
+  return <AgentIcon agent={agent.kind} size={size} />;
+}

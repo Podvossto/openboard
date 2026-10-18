@@ -1,4 +1,4 @@
-import { AgentIcon } from "../../components/AgentIcon";
+import { ConsoleAgentIcon } from "../../components/AgentIcon";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -202,7 +202,7 @@ export function TerminalView({ console: c }: { console: ConsoleNode }) {
         <div className="console-overlay absolute inset-0 grid place-items-center bg-bg/80 backdrop-blur-sm" role="dialog" aria-label="Start console">
           <div className="glass animate-rise flex min-w-[300px] max-w-[90%] flex-col items-center gap-2 rounded-3xl px-10 py-8 text-center">
             <span className="mb-1 grid size-14 place-items-center rounded-2xl border border-line-strong bg-black/30 shadow-[0_0_30px_-8px_var(--tint)]">
-              <AgentIcon agent={c.agent.kind} size={30} />
+              <ConsoleAgentIcon agent={c.agent} size={30} />
             </span>
             <div className="text-[17px] font-semibold tracking-tight text-ink">{agentLabel(c.agent)}</div>
             <div className="max-w-full truncate font-mono text-[12px] text-ink-3" title={cwdShown}>

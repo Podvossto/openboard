@@ -82,6 +82,11 @@ w.__TAURI_INTERNALS__ = {
           claude: { installed: true, loggedIn: true, detail: "dev@example.com · pro" },
           codex: { installed: true, loggedIn: false, detail: null },
           shell: "pwsh",
+          catalog: [
+            { id: "gemini", name: "Gemini CLI", program: "gemini", install: "npm i -g @google/gemini-cli", installed: true },
+            { id: "opencode", name: "OpenCode", program: "opencode", install: "npm i -g opencode-ai", installed: true },
+            { id: "aider", name: "Aider", program: "aider", install: "pip install aider-install", installed: false },
+          ],
         };
       case "claude_usage":
         return { session: { percent: 34, resetsAt: new Date(Date.now() + 2 * 3600e3).toISOString() }, weekly: { percent: 71, resetsAt: null }, error: null };
@@ -116,6 +121,29 @@ w.__TAURI_INTERNALS__ = {
         if (live.length === 0) return { action: "none", reason: "Nothing running." };
         return { action: "send", targets: [live[0]!.id], message: String(args.instruction), reason: "best match" };
       }
+      case "loop_goal_check": {
+        const n = (window as unknown as { __goalCalls?: number }).__goalCalls ?? 0;
+        (window as unknown as { __goalCalls?: number }).__goalCalls = n + 1;
+        return n >= 1 ? { done: true, reason: "tests pass" } : { done: false, reason: "not yet" };
+      }
+      case "git_status":
+        return {
+          branch: "dev",
+          upstream: "origin/dev",
+          ahead: 2,
+          behind: 0,
+          changes: [
+            { code: ".M", path: "src/App.tsx" },
+            { code: "??", path: "notes.md" },
+          ],
+          commits: [
+            { hash: "048d070", subject: "feat: AI dispatcher", when: "5 minutes ago" },
+            { hash: "f6414bd", subject: "feat(ui): Tailwind restyle", when: "1 hour ago" },
+          ],
+          branches: ["dev", "main"],
+        };
+      case "git_run":
+        return args.action === "commitAll" ? `[dev abc1234] ${String(args.message)}` : "Everything up-to-date";
       case "handoff_brief":
         return "Goal: API. Done: /users route. Next: write tests for /users.";
       case "write_console": {

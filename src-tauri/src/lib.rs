@@ -79,6 +79,9 @@ pub fn run() {
             commands::claude_usage,
             commands::handoff_brief,
             commands::route_instruction,
+            commands::git_status,
+            commands::git_run,
+            commands::loop_goal_check,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Agent Board")

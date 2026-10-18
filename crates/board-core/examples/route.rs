@@ -34,6 +34,20 @@ fn main() {
                 Err(e) => println!("ERR {e} <- {s}"),
             }
         }
-        _ => eprintln!("usage: route prompt <text> | route parse"),
+        Some("goal") => {
+            let goal = a.next().unwrap_or_default();
+            let mut s = String::new();
+            std::io::stdin().read_to_string(&mut s).unwrap();
+            print!("{}", board_core::router::goal_prompt(&goal, "api", &s));
+        }
+        Some("verdict") => {
+            let mut s = String::new();
+            std::io::stdin().read_to_string(&mut s).unwrap();
+            match board_core::router::parse_goal(&s) {
+                Ok(v) => println!("{}", serde_json::to_string(&v).unwrap()),
+                Err(e) => println!("ERR {e} <- {s}"),
+            }
+        }
+        _ => eprintln!("usage: route prompt <text> | route parse | route goal <goal> < transcript | route verdict"),
     }
 }

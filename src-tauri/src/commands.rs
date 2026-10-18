@@ -230,6 +230,8 @@ pub struct Detected {
     claude: AuthInfo,
     codex: AuthInfo,
     shell: String,
+    /// Other agent CLIs (gemini, opencode, aider …) and whether they are on PATH.
+    catalog: Vec<board_core::catalog::CatalogStatus>,
 }
 
 #[tauri::command]
@@ -245,6 +247,7 @@ pub async fn detect_agents(state: State<'_, AppState>) -> Result<Detected> {
             } else {
                 shell_setting
             },
+            catalog: board_core::catalog::detect(|p| agents::resolve(p).is_ok()),
         }
     })
     .await
@@ -328,4 +331,60 @@ pub async fn route_instruction(
     })
     .await
     .map_err(|e| Error::Pty(e.to_string()))?
+}
+
+/// Loop goal check: summarise console output vs. `goal` with `claude -p` (fast model).
+#[tauri::command]
+pub async fn loop_goal_check(
+    state: State<'_, AppState>,
+    id: String,
+    title: String,
+    goal: String,
+) -> Result<board_core::router::GoalVerdict> {
+    let transcript = state
+        .pty
+        .transcript(&id, 6_000)
+        .ok_or_else(|| Error::ConsoleNotFound(id.clone()))?;
+    let cwd = state.settings.lock().resolved_cwd();
+    tauri::async_runtime::spawn_blocking(move || {
+        let prompt = board_core::router::goal_prompt(&goal, &title, &transcript);
+        let raw = claude_print(cwd, prompt, &["--model", "haiku"])?;
+        board_core::router::parse_goal(&raw)
+    })
+    .await
+    .map_err(|e| Error::Pty(e.to_string()))?
+}
+
+// ---------- git card ----------
+
+fn tile_cwd(state: &State<'_, AppState>, cwd: &str) -> PathBuf {
+    if cwd.trim().is_empty() {
+        state.settings.lock().resolved_cwd()
+    } else {
+        PathBuf::from(cwd)
+    }
+}
+
+#[tauri::command]
+pub async fn git_status(
+    state: State<'_, AppState>,
+    cwd: String,
+) -> Result<board_core::git::GitStatus> {
+    let dir = tile_cwd(&state, &cwd);
+    tauri::async_runtime::spawn_blocking(move || board_core::git::status(&dir))
+        .await
+        .map_err(|e| Error::Pty(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn git_run(
+    state: State<'_, AppState>,
+    cwd: String,
+    action: board_core::git::GitAction,
+    message: String,
+) -> Result<String> {
+    let dir = tile_cwd(&state, &cwd);
+    tauri::async_runtime::spawn_blocking(move || board_core::git::run(&dir, action, &message))
+        .await
+        .map_err(|e| Error::Pty(e.to_string()))?
 }

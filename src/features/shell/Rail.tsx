@@ -1,6 +1,58 @@
-import type { ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { useBoard } from "../../store/board";
+import { addTile } from "../tiles/addTile";
+import { TILE_META } from "../tiles/logic";
+import { TileIcon } from "../tiles/TileIcon";
+import { useDismiss } from "../dock/useDismiss";
+import type { TileKind } from "../../lib/types";
+
+const KINDS: { kind: TileKind; hint: string }[] = [
+  { kind: "note", hint: "Sticky note" },
+  { kind: "checklist", hint: "Tasks you can send to an agent" },
+  { kind: "kanban", hint: "Columns of draggable cards" },
+  { kind: "web", hint: "Live localhost preview" },
+  { kind: "git", hint: "Branch, changes, commit / push / pull" },
+];
+
+function AddTileButton() {
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const ref = useRef<HTMLDivElement>(null);
+  const rf = useReactFlow();
+  useDismiss(open, ref, close);
+  return (
+    <div className="relative" ref={ref}>
+      <RailButton label="Add tile" active={open} onClick={() => setOpen((o) => !o)}>
+        <rect x="3.5" y="3.5" width="17" height="17" rx="4" />
+        <path d="M12 8v8M8 12h8" />
+      </RailButton>
+      {open && (
+        <div role="menu" aria-label="Add tile" className="glass animate-pop absolute left-[calc(100%+10px)] top-0 z-50 w-64 rounded-2xl p-1.5">
+          {KINDS.map(({ kind, hint }) => (
+            <button
+              key={kind}
+              role="menuitem"
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-surface-3"
+              onClick={() => {
+                setOpen(false);
+                void addTile(kind, rf);
+              }}
+            >
+              <span className="grid size-8 place-items-center rounded-lg border border-line bg-black/30">
+                <TileIcon kind={kind} size={16} />
+              </span>
+              <span className="flex flex-col">
+                <span className="text-[13px] font-semibold text-ink">{TILE_META[kind].label}</span>
+                <span className="text-[11.5px] text-ink-3">{hint}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function RailButton({
   label,
@@ -46,6 +98,7 @@ export function Rail() {
         <rect x="3" y="13" width="8" height="8" rx="2" />
         <rect x="13" y="10" width="8" height="11" rx="2" />
       </RailButton>
+      <AddTileButton />
       <RailButton label="Memory" active={memoryOpen} onClick={() => setUi({ memoryOpen: true })}>
         <path d="M6 3h9l4 4v14H6z" />
         <path d="M14 3v5h5M9 13h7M9 17h5" />

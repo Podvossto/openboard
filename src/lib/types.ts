@@ -22,6 +22,30 @@ export interface ConsoleNode {
   height: number;
   group?: string;
   agentSession?: string;
+  /** automation loop (off unless enabled by the user) */
+  loop?: LoopConfig;
+}
+
+export type LoopTrigger =
+  | { kind: "interval"; minutes: number }
+  /** fire when the console has been resting this long */
+  | { kind: "idle"; seconds: number }
+  /** fire when new output contains this text */
+  | { kind: "output"; match: string };
+
+export interface LoopConfig {
+  enabled: boolean;
+  trigger: LoopTrigger;
+  /** text submitted to the console each time */
+  message: string;
+  /** stop after this many runs (0 = no limit) */
+  maxRuns: number;
+  /** optional: stop when claude -p says this goal is met */
+  goal: string;
+  runs: number;
+  lastRunAt?: number;
+  /** why it stopped last time (goal met / max runs / error) */
+  stoppedReason?: string;
 }
 
 export interface Group {
@@ -40,6 +64,43 @@ export interface Viewport {
   zoom: number;
 }
 
+export type TileKind = "note" | "checklist" | "kanban" | "web" | "git";
+
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+export interface KanbanCard {
+  id: string;
+  text: string;
+}
+export interface KanbanColumn {
+  id: string;
+  name: string;
+  cards: KanbanCard[];
+}
+/** `data` shape per kind (stored as free JSON by the backend). */
+export interface TileData {
+  note: { text: string; color?: string };
+  checklist: { items: ChecklistItem[] };
+  kanban: { columns: KanbanColumn[] };
+  web: { url: string };
+  git: { cwd: string };
+}
+
+export interface Tile<K extends TileKind = TileKind> {
+  id: string;
+  kind: K;
+  title: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  group?: string;
+  data: TileData[K];
+}
+
 export interface Workspace {
   id: string;
   name: string;
@@ -47,7 +108,29 @@ export interface Workspace {
   consoles: ConsoleNode[];
   groups: Group[];
   memory: string;
+  /** may be missing in boards saved before tiles existed */
+  tiles?: Tile[];
 }
+
+export interface GitChange {
+  code: string;
+  path: string;
+}
+export interface GitCommit {
+  hash: string;
+  subject: string;
+  when: string;
+}
+export interface GitStatus {
+  branch: string;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  changes: GitChange[];
+  commits: GitCommit[];
+  branches: string[];
+}
+export type GitAction = "pull" | "push" | "commitAll";
 
 export interface PresetMember {
   title: string;
@@ -85,10 +168,20 @@ export interface AuthInfo {
   detail: string | null;
 }
 
+export interface CatalogStatus {
+  id: string;
+  name: string;
+  program: string;
+  install: string;
+  installed: boolean;
+}
+
 export interface Detected {
   claude: AuthInfo;
   codex: AuthInfo;
   shell: string;
+  /** other agent CLIs and whether they are on PATH */
+  catalog: CatalogStatus[];
 }
 
 export interface UsageWindow {
@@ -121,3 +214,8 @@ export type RoutePlan =
   | { action: "send"; targets: string[]; message: string; reason: string }
   | { action: "handoff"; from: string; to: string; reason: string }
   | { action: "none"; reason: string };
+
+export interface GoalVerdict {
+  done: boolean;
+  reason: string;
+}

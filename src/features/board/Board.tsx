@@ -14,9 +14,12 @@ import { STATUS_COLOR } from "../console/statusStyle";
 import { persistableChanges, reconcile, type AppNode } from "./nodes";
 import { GroupNodeView } from "./GroupNodeView";
 import { ZoomControl } from "./ZoomControl";
+import { TileNodeView } from "../tiles/TileNodeView";
+import type { Tile } from "../../lib/types";
 import "./board.css";
 
-const nodeTypes = { console: ConsoleNodeView, group: GroupNodeView };
+const nodeTypes = { console: ConsoleNodeView, group: GroupNodeView, tile: TileNodeView };
+const NO_TILES: Tile[] = [];
 
 /** Shows ONLY the active workspace; remounts per workspace so its saved viewport applies. */
 export function Board() {
@@ -27,26 +30,29 @@ export function Board() {
 function WorkspaceCanvas() {
   const consoles = useBoard((s) => activeWorkspace(s.board).consoles);
   const groups = useBoard((s) => activeWorkspace(s.board).groups);
+  const tiles = useBoard((s) => activeWorkspace(s.board).tiles ?? NO_TILES);
   const runtime = useBoard((s) => s.runtime);
   // viewport is only read on mount (defaultViewport) — later changes come from the canvas itself
   const [initialViewport] = useState(() => activeWorkspace(useBoard.getState().board).viewport);
-  const [nodes, setNodes] = useState<AppNode[]>(() => reconcile(consoles, groups, []));
+  const [nodes, setNodes] = useState<AppNode[]>(() => reconcile(consoles, groups, [], tiles));
 
   // Store → nodes (add/remove/rename/persisted moves).
-  useEffect(() => setNodes((prev) => reconcile(consoles, groups, prev)), [consoles, groups]);
+  useEffect(() => setNodes((prev) => reconcile(consoles, groups, prev, tiles)), [consoles, groups, tiles]);
 
   const groupIds = useMemo(() => new Set(groups.map((g) => g.id)), [groups]);
+  const tileIds = useMemo(() => new Set(tiles.map((t) => t.id)), [tiles]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange<AppNode>[]) => {
       setNodes((nds) => applyNodeChanges(changes, nds));
       const st = useBoard.getState();
-      for (const { id, kind, patch } of persistableChanges(changes, groupIds)) {
+      for (const { id, kind, patch } of persistableChanges(changes, groupIds, tileIds)) {
         if (kind === "group") st.patchGroup(id, patch);
+        else if (kind === "tile") st.patchTile(id, patch);
         else st.patchConsole(id, patch);
       }
     },
-    [groupIds],
+    [groupIds, tileIds],
   );
 
   const onMoveEnd = useCallback((_: unknown, v: Viewport) => {
@@ -81,6 +87,7 @@ function WorkspaceCanvas() {
         maskColor="rgba(10, 11, 13, 0.72)"
         nodeColor={(n) => {
           if (n.type === "group") return "rgba(124, 156, 255, 0.18)";
+          if (n.type === "tile") return "rgba(242, 212, 90, 0.45)";
           const r = runtime[n.id];
           return STATUS_COLOR[r?.running ? r.status : "exited"];
         }}

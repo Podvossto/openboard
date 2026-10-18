@@ -3,7 +3,7 @@ import { useReactFlow } from "@xyflow/react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { createConsole, spawnGroup } from "../../lib/actions";
 import { ipc, submit } from "../../lib/ipc";
-import type { AgentKind } from "../../lib/types";
+import type { CatalogStatus, AgentKind } from "../../lib/types";
 import {
   activeWorkspace,
   boardBottom,
@@ -12,7 +12,7 @@ import {
 } from "../../store/board";
 import { emptyGroupFrame, planGroupFromConsoles } from "../board/grouping";
 import { CommandBar } from "./CommandBar";
-import { AgentIcon } from "../../components/AgentIcon";
+import { AgentIcon, CatalogIcon } from "../../components/AgentIcon";
 import { useDismiss } from "./useDismiss";
 import { ComposeGroup } from "./ComposeGroup";
 
@@ -215,6 +215,7 @@ export function Dock() {
                     {a.label}
                   </PopItem>
                 ))}
+                <CatalogItems onPick={(program) => void newConsole({ kind: "custom", program })} />
               </PopMenu>
             )}
           </div>
@@ -353,5 +354,39 @@ function HintChip() {
     <div key={i} className="animate-rise rounded-full border border-line bg-surface/80 px-3 py-1 text-[12px] text-ink-3 backdrop-blur">
       Try <span className="font-semibold text-ink-2">“{HINTS[i]}”</span>
     </div>
+  );
+}
+
+/** Installed third-party agent CLIs (gemini, opencode, aider …) from the backend catalog. */
+function CatalogItems({ onPick }: { onPick: (program: string) => void }) {
+  const [cat, setCat] = useState<CatalogStatus[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    ipc
+      .detectAgents()
+      .then((d) => live && setCat(d.catalog ?? []))
+      .catch(() => live && setCat([]));
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (!cat) return <div className="px-3 py-1.5 text-[12px] text-ink-3">Looking for other agents…</div>;
+  const have = cat.filter((c) => c.installed);
+  const missing = cat.length - have.length;
+  return (
+    <>
+      {have.length > 0 && <div className="mx-2 my-1 h-px bg-line" />}
+      {have.map((c) => (
+        <PopItem key={c.id} onClick={() => onPick(c.program)}>
+          <CatalogIcon id={c.id} />
+          {c.name}
+        </PopItem>
+      ))}
+      {missing > 0 && (
+        <div className="px-3 pb-1 pt-1.5 text-[11px] text-ink-3" title={cat.filter((c) => !c.installed).map((c) => `${c.name}: ${c.install}`).join("\n")}>
+          +{missing} more supported (not installed)
+        </div>
+      )}
+    </>
   );
 }

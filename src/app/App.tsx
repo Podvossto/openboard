@@ -1,4 +1,5 @@
 // App shell. CONTRACT: the mount points below are fixed; each feature owns its component.
+import { useLoops } from "../features/loops/useLoops";
 import { useEffect, useState } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { Board } from "../features/board/Board";
@@ -37,6 +38,7 @@ export function App() {
 
   useBoardRuntime();
   useAutosave();
+  useLoops();
 
   if (!loaded) return <div className="splash">Agent Board</div>;
   return (

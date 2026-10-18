@@ -208,6 +208,37 @@ pub fn parse_plan(raw: &str, consoles: &[RouterConsole]) -> Result<Plan> {
     }
 }
 
+/// Prompt for a loop's goal check: has the console reached `goal`? (`claude -p`)
+pub fn goal_prompt(goal: &str, title: &str, transcript: &str) -> String {
+    format!(
+        r#"You check whether an AI coding agent's work has reached a goal.
+
+Goal: {goal:?}
+
+Recent terminal output of console {title:?} (newest last):
+<<<
+{transcript}
+>>>
+
+Answer with ONLY one JSON object, no prose:
+{{"done": true|false, "reason": "<one short sentence>"}}
+Say done=true only when the output clearly shows the goal is met (e.g. tests passing, task reported complete)."#
+    )
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct GoalVerdict {
+    pub done: bool,
+    #[serde(default)]
+    pub reason: String,
+}
+
+pub fn parse_goal(raw: &str) -> Result<GoalVerdict> {
+    let json = extract_json(raw)
+        .ok_or_else(|| Error::Hook(format!("goal check gave no JSON: {}", raw.trim())))?;
+    Ok(serde_json::from_str(json)?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -297,6 +328,17 @@ mod tests {
                 reason: "unclear".into()
             }
         );
+    }
+
+    #[test]
+    fn goal_prompt_and_parse() {
+        let p = goal_prompt("all tests pass", "api", "12 passed, 0 failed");
+        assert!(p.contains(r#"Goal: "all tests pass""#) && p.contains("12 passed"));
+        let v = parse_goal("```json\n{\"done\": true, \"reason\": \"0 failed\"}\n```").unwrap();
+        assert!(v.done);
+        assert_eq!(v.reason, "0 failed");
+        assert!(!parse_goal(r#"{"done":false}"#).unwrap().done);
+        assert!(parse_goal("maybe").is_err());
     }
 
     #[test]

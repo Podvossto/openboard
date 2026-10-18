@@ -5,7 +5,9 @@
 
 pub mod agents;
 pub mod ansi;
+pub mod catalog;
 pub mod error;
+pub mod git;
 pub mod hooks;
 pub mod model;
 pub mod persist;

@@ -3,7 +3,7 @@ import { NodeResizer, type NodeProps } from "@xyflow/react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import type { ConsoleFlowNode } from "../board/nodes";
 import { displayStatus, useBoard } from "../../store/board";
-import { AgentIcon } from "../../components/AgentIcon";
+import { ConsoleAgentIcon } from "../../components/AgentIcon";
 import { ipc } from "../../lib/ipc";
 import { STATUS_LABEL } from "./statusStyle";
 import { TerminalView } from "./TerminalView";
@@ -60,7 +60,7 @@ export const ConsoleNodeView = memo(function ConsoleNodeView({ data, selected }:
       <NodeResizer isVisible={selected} minWidth={360} minHeight={220} lineClassName="!border-accent/40" handleClassName="!size-2.5 !rounded-full !border-0 !bg-accent" />
       <div className="console-header flex h-11 shrink-0 cursor-grab items-center gap-2.5 px-3 active:cursor-grabbing">
         <span className="grid size-7 shrink-0 place-items-center rounded-lg border border-line bg-black/30">
-          <AgentIcon agent={c.agent.kind} size={16} />
+          <ConsoleAgentIcon agent={c.agent} size={16} />
         </span>
         {editing ? (
           <input
@@ -85,6 +85,19 @@ export const ConsoleNodeView = memo(function ConsoleNodeView({ data, selected }:
         >
           {cwdText}
         </span>
+        {c.loop?.enabled && (
+          <span
+            className="flex h-6 shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 text-[11px] font-semibold text-accent"
+            title={`Loop: ${c.loop.message} · ${c.loop.runs}${c.loop.maxRuns ? `/${c.loop.maxRuns}` : ""} runs`}
+            aria-label="Loop running"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true" className="animate-spin [animation-duration:3s]">
+              <path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7" />
+            </svg>
+            {c.loop.runs}
+            {c.loop.maxRuns ? `/${c.loop.maxRuns}` : ""}
+          </span>
+        )}
         <span className={`pill ${status} flex h-6 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[11.5px] font-semibold ${statusTone[status]}`}>
           <span className={`status-dot ${status} size-1.5 rounded-full bg-current`} />
           {STATUS_LABEL[status]}

@@ -44,6 +44,9 @@ pub struct Workspace {
     /// Shared notes for this workspace. Only sent to a console when the user asks.
     #[serde(default)]
     pub memory: String,
+    /// Non-console tiles: notes, checklists, kanban, web previews, git cards.
+    #[serde(default)]
+    pub tiles: Vec<Tile>,
 }
 
 impl Workspace {
@@ -55,6 +58,7 @@ impl Workspace {
             consoles: vec![],
             groups: vec![],
             memory: String::new(),
+            tiles: vec![],
         }
     }
 }
@@ -88,6 +92,35 @@ pub struct Group {
     pub height: f64,
 }
 
+/// A board tile that is not a terminal. `data` is owned by the frontend per `kind`
+/// (note: {text}, checklist: {items}, kanban: {columns}, web: {url}, git: {cwd}).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Tile {
+    pub id: String,
+    pub kind: TileKind,
+    #[serde(default)]
+    pub title: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    #[serde(default)]
+    pub data: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TileKind {
+    Note,
+    Checklist,
+    Kanban,
+    Web,
+    Git,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConsoleNode {
@@ -107,6 +140,9 @@ pub struct ConsoleNode {
     /// Agent-side session id used for resume (Claude: the `--session-id` we assigned).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_session: Option<String>,
+    /// Automation loop config (frontend-owned shape, see src/features/loops).
+    #[serde(rename = "loop", default, skip_serializing_if = "Option::is_none")]
+    pub loop_cfg: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -201,6 +237,18 @@ mod tests {
                 args: vec![]
             }
         );
+    }
+
+    #[test]
+    fn workspace_without_tiles_still_loads() {
+        let w: Workspace = serde_json::from_str(r#"{"id":"a","name":"A"}"#).unwrap();
+        assert!(w.tiles.is_empty());
+        let t: Tile = serde_json::from_str(
+            r#"{"id":"t","kind":"kanban","x":1,"y":2,"width":3,"height":4,"data":{"columns":[]}}"#,
+        )
+        .unwrap();
+        assert_eq!(t.kind, TileKind::Kanban);
+        assert_eq!(t.data["columns"], serde_json::json!([]));
     }
 
     #[test]

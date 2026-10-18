@@ -141,6 +141,7 @@ mod tests {
             height: 400.0,
             group: None,
             agent_session: Some("s".into()),
+            loop_cfg: None,
         });
         b
     }
