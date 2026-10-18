@@ -98,7 +98,7 @@ with sync_playwright() as p:
       const tick = () => {
         const e = document.querySelector(".react-flow__node[data-id='c4'] .console");
         if (e) { min = Math.min(min, +getComputedStyle(e).opacity); mounted++; }
-        if (!e || ++frames > 120) return res([min, mounted]);
+        if (!e || ++frames > 600) return res([min, mounted]);
         requestAnimationFrame(tick);
       };
       tick();

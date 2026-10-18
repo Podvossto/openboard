@@ -9,6 +9,8 @@ import type {
   ProviderPreset,
   Board,
   Detected,
+  FileContent,
+  FsEntry,
   GitAction,
   GoalVerdict,
   GitStatus,
@@ -75,6 +77,9 @@ export const ipc = {
   usageAll: () => invoke<AccountUsage[]>("usage_all"),
   gitStatus: (cwd: string) => invoke<GitStatus>("git_status", { cwd }),
   gitRun: (cwd: string, action: GitAction, message = "") => invoke<string>("git_run", { cwd, action, message }),
+  fsList: (root: string, rel: string) => invoke<FsEntry[]>("fs_list", { root, rel }),
+  fsRead: (root: string, rel: string) => invoke<FileContent>("fs_read", { root, rel }),
+  fsWrite: (root: string, rel: string, text: string) => invoke<void>("fs_write", { root, rel, text }),
 };
 
 export const events = {

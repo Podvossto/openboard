@@ -13,6 +13,7 @@ import { ChecklistTile } from "./ChecklistTile";
 import { KanbanTile } from "./KanbanTile";
 import { WebTile } from "./WebTile";
 import { GitTile } from "./GitTile";
+import { CodeTile } from "./CodeTile";
 
 const MIN: Record<Tile["kind"], [number, number]> = {
   note: [200, 140],
@@ -20,6 +21,7 @@ const MIN: Record<Tile["kind"], [number, number]> = {
   kanban: [480, 260],
   web: [360, 260],
   git: [320, 300],
+  code: [300, 200],
 };
 
 export const TileNodeView = memo(function TileNodeView({ data, selected }: NodeProps<TileFlowNode>) {
@@ -96,6 +98,7 @@ export const TileNodeView = memo(function TileNodeView({ data, selected }: NodeP
         {t.kind === "checklist" && <ChecklistTile tile={t as Tile<"checklist">} setData={setData} />}
         {t.kind === "kanban" && <KanbanTile tile={t as Tile<"kanban">} setData={setData} />}
         {t.kind === "web" && <WebTile tile={t as Tile<"web">} setData={setData} />}
+        {t.kind === "code" && <CodeTile tile={t as Tile<"code">} />}
         {t.kind === "git" && <GitTile tile={t as Tile<"git">} setData={setData} />}
       </div>
     </motion.div>

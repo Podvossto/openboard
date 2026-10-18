@@ -7,6 +7,7 @@ pub mod agents;
 pub mod ansi;
 pub mod catalog;
 pub mod error;
+pub mod files;
 pub mod git;
 pub mod hooks;
 pub mod mcp;

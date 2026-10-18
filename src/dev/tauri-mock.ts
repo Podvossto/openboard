@@ -42,6 +42,31 @@ function send(id: string, s: string) {
   if (ch !== undefined) callbacks.get(ch)?.({ message: enc.encode(s).buffer, index: 0 });
 }
 const w = window as unknown as Record<string, unknown>;
+// in-memory fake project tree for the Code studio (path → text); window.__fs is inspectable by tests
+const fakeFs: Record<string, string> = {
+  "package.json": '{\n  "name": "demo-app",\n  "version": "1.0.0"\n}\n',
+  "README.md": "# Demo app\n\nA tiny **demo** project.\n",
+  "src/main.ts": 'import { greet } from "./util";\n\nconst message: string = "hello mock";\nconsole.log(greet(message));\n',
+  "src/util.ts": "export const greet = (s: string) => `hi ${s}`;\n",
+  "src/styles/app.css": "body { color: #ececf1; }\n",
+  "src/lib/deep/notes.txt": "deep file\n",
+  "assets/logo.bin": "\u0000BIN",
+};
+w.__fs = fakeFs;
+const fsBad = (rel: string) => rel.startsWith("/") || rel.startsWith("\\") || /^[a-z]:/i.test(rel) || rel.split(/[\\/]/).includes("..");
+function fsList(rel: string) {
+  if (fsBad(rel)) throw "io: path escapes the project folder";
+  const prefix = rel ? `${rel}/` : "";
+  const seen = new Map<string, { name: string; path: string; isDir: boolean; size: number }>();
+  for (const [p, text] of Object.entries(fakeFs)) {
+    if (!p.startsWith(prefix)) continue;
+    const rest = p.slice(prefix.length);
+    const name = rest.split("/")[0]!;
+    const isDir = rest.includes("/");
+    if (!seen.has(name)) seen.set(name, { name, path: prefix + name, isDir, size: isDir ? 0 : text.length });
+  }
+  return [...seen.values()].sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name));
+}
 w.__ipcLog = log;
 w.__mock = { emit, send, running };
 w.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => undefined };
@@ -169,6 +194,21 @@ w.__TAURI_INTERNALS__ = {
         };
       case "git_run":
         return args.action === "commitAll" ? `[dev abc1234] ${String(args.message)}` : "Everything up-to-date";
+      case "fs_list":
+        return fsList(String(args.rel));
+      case "fs_read": {
+        const rel = String(args.rel);
+        if (fsBad(rel)) throw "io: path escapes the project folder";
+        const text = fakeFs[rel];
+        if (text === undefined) throw "io: No such file or directory";
+        return { text: text.includes("\u0000") ? "" : text, truncated: false, binary: text.includes("\u0000") };
+      }
+      case "fs_write": {
+        const rel = String(args.rel);
+        if (fsBad(rel)) throw "io: path escapes the project folder";
+        fakeFs[rel] = String(args.text);
+        return null;
+      }
       case "handoff_brief":
         return "Goal: API. Done: /users route. Next: write tests for /users.";
       case "write_console": {

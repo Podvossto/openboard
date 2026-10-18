@@ -123,6 +123,7 @@ pub enum TileKind {
     Kanban,
     Web,
     Git,
+    Code,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

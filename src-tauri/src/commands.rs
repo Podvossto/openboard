@@ -447,6 +447,45 @@ pub async fn git_run(
         .map_err(|e| Error::Pty(e.to_string()))?
 }
 
+// ---------- code studio (sandboxed file access) ----------
+
+#[tauri::command]
+pub async fn fs_list(
+    state: State<'_, AppState>,
+    root: String,
+    rel: String,
+) -> Result<Vec<board_core::files::FsEntry>> {
+    let dir = tile_cwd(&state, &root);
+    tauri::async_runtime::spawn_blocking(move || board_core::files::list_dir(&dir, &rel))
+        .await
+        .map_err(|e| Error::Pty(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn fs_read(
+    state: State<'_, AppState>,
+    root: String,
+    rel: String,
+) -> Result<board_core::files::FileContent> {
+    let dir = tile_cwd(&state, &root);
+    tauri::async_runtime::spawn_blocking(move || board_core::files::read_file(&dir, &rel))
+        .await
+        .map_err(|e| Error::Pty(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn fs_write(
+    state: State<'_, AppState>,
+    root: String,
+    rel: String,
+    text: String,
+) -> Result<()> {
+    let dir = tile_cwd(&state, &root);
+    tauri::async_runtime::spawn_blocking(move || board_core::files::write_file(&dir, &rel, &text))
+        .await
+        .map_err(|e| Error::Pty(e.to_string()))?
+}
+
 // ---------- profiles / accounts ----------
 
 #[tauri::command]
