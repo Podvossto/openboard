@@ -10,6 +10,7 @@ import { Rail } from "../features/shell/Rail";
 import { Dock } from "../features/dock/Dock";
 import { SettingsPanel } from "../features/settings/SettingsPanel";
 import { MemoryPanel } from "../features/dock/MemoryPanel";
+import { UsageAnalytics } from "../features/usage/UsageAnalytics";
 const CodePanel = lazy(() => import("../features/code/CodePanel").then((m) => ({ default: m.CodePanel })));
 import { useBoardRuntime } from "../features/console/useBoardRuntime";
 import { useAutosave } from "../features/board/useAutosave";
@@ -70,6 +71,7 @@ export function App() {
           {ui.settingsOpen && <SettingsPanel key="settings" onClose={() => useBoard.getState().setUi({ settingsOpen: false })} />}
           {ui.codeOpen && <CodePanel key="code" onClose={() => useBoard.getState().setUi({ codeOpen: false, codeTarget: null })} />}
           {ui.memoryOpen && <MemoryPanel key="memory" onClose={() => useBoard.getState().setUi({ memoryOpen: false })} />}
+          {ui.usageAnalyticsOpen && <UsageAnalytics key="usage-analytics" onClose={() => useBoard.getState().setUi({ usageAnalyticsOpen: false })} />}
         </AnimatePresence>
         </Suspense>
       </div>

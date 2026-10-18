@@ -612,6 +612,24 @@ pub async fn usage_all(state: State<'_, AppState>) -> Result<Vec<AccountUsage>> 
     .map_err(|e| Error::Pty(e.to_string()))
 }
 
+/// Usage analytics from local session logs (Claude projects + Codex rollouts,
+/// including every profile's config dir) for the last `days` days.
+#[tauri::command]
+pub async fn usage_analytics(
+    state: State<'_, AppState>,
+    days: u32,
+) -> Result<board_core::analytics::Analytics> {
+    let profiles = state.settings.lock().profiles.clone();
+    let data_dir = state.data_dir.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let home = home_dir().unwrap_or_default();
+        let sources = board_core::analytics::default_sources(&home, &data_dir, &profiles);
+        board_core::analytics::collect(&sources, days as usize)
+    })
+    .await
+    .map_err(|e| Error::Pty(e.to_string()))
+}
+
 // ---------- orchestrator ----------
 
 /// The UI pushes the current consoles (all workspaces) so lead agents can address them.

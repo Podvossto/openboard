@@ -4,6 +4,7 @@
 //! The Tauri shell (`src-tauri`) only wires these pieces to IPC commands.
 
 pub mod agents;
+pub mod analytics;
 pub mod ansi;
 pub mod catalog;
 pub mod error;

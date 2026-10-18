@@ -213,6 +213,22 @@ function UsagePill() {
               </div>
             );
           })}
+          <div className="mt-1 border-t border-line px-1.5 pb-1 pt-1.5">
+            <button
+              className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-[13px] font-semibold text-ink-2 transition hover:bg-surface-2 hover:text-ink active:scale-[0.99]"
+              onClick={() => {
+                setOpen(false);
+                useBoard.getState().setUi({ usageAnalyticsOpen: true });
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true">
+                <rect x="1" y="7" width="3" height="6" rx="1" fill="currentColor" />
+                <rect x="5.5" y="4" width="3" height="9" rx="1" fill="currentColor" opacity="0.75" />
+                <rect x="10" y="1" width="3" height="12" rx="1" fill="currentColor" opacity="0.5" />
+              </svg>
+              Analytics…
+            </button>
+          </div>
         </motion.div>
       )}
       </AnimatePresence>
