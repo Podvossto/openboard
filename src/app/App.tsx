@@ -1,7 +1,7 @@
 // App shell. CONTRACT: the mount points below are fixed; each feature owns its component.
 import { useLoops } from "../features/loops/useLoops";
 import { useOrchestrator } from "../features/orchestrator/useOrchestrator";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { AnimatePresence, MotionConfig } from "motion/react";
 import { Board } from "../features/board/Board";
@@ -10,6 +10,7 @@ import { Rail } from "../features/shell/Rail";
 import { Dock } from "../features/dock/Dock";
 import { SettingsPanel } from "../features/settings/SettingsPanel";
 import { MemoryPanel } from "../features/dock/MemoryPanel";
+const CodePanel = lazy(() => import("../features/code/CodePanel").then((m) => ({ default: m.CodePanel })));
 import { useBoardRuntime } from "../features/console/useBoardRuntime";
 import { useAutosave } from "../features/board/useAutosave";
 import { ipc } from "../lib/ipc";
@@ -64,10 +65,13 @@ export function App() {
             <Dock />
           </main>
         </div>
+        <Suspense fallback={null}>
         <AnimatePresence>
           {ui.settingsOpen && <SettingsPanel key="settings" onClose={() => useBoard.getState().setUi({ settingsOpen: false })} />}
+          {ui.codeOpen && <CodePanel key="code" onClose={() => useBoard.getState().setUi({ codeOpen: false, codeTarget: null })} />}
           {ui.memoryOpen && <MemoryPanel key="memory" onClose={() => useBoard.getState().setUi({ memoryOpen: false })} />}
         </AnimatePresence>
+        </Suspense>
       </div>
     </ReactFlowProvider>
     </MotionConfig>

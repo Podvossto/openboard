@@ -67,7 +67,14 @@ interface BoardState {
   /** console id with keyboard focus (command bar default target) */
   focused: string | null;
   /** id of console whose "…" menu / rename / settings is open */
-  ui: { settingsOpen: boolean; memoryOpen: boolean; ink: InkTool | null };
+  ui: {
+    settingsOpen: boolean;
+    memoryOpen: boolean;
+    ink: InkTool | null;
+    codeOpen: boolean;
+    /** file to open when the Code studio opens (pinned tile double-click) */
+    codeTarget: { root: string; path: string } | null;
+  };
 
   hydrate: (b: Board) => void;
   setSettings: (s: Settings, resolvedCwd: string) => void;
@@ -136,7 +143,7 @@ export const useBoard = create<BoardState>((set) => ({
   runtime: {},
   revision: 0,
   focused: null,
-  ui: { settingsOpen: false, memoryOpen: false, ink: null },
+  ui: { settingsOpen: false, memoryOpen: false, ink: null, codeOpen: false, codeTarget: null },
 
   hydrate: (board) => set({ board, loaded: true }),
   setSettings: (settings, resolvedCwd) => set({ settings, resolvedCwd }),

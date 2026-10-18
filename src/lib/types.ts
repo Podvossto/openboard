@@ -68,7 +68,7 @@ export interface Viewport {
   zoom: number;
 }
 
-export type TileKind = "note" | "checklist" | "kanban" | "web" | "git";
+export type TileKind = "note" | "checklist" | "kanban" | "web" | "git" | "code";
 
 export interface ChecklistItem {
   id: string;
@@ -91,6 +91,7 @@ export interface TileData {
   kanban: { columns: KanbanColumn[] };
   web: { url: string };
   git: { cwd: string };
+  code: { root: string; path: string };
 }
 
 export interface Tile<K extends TileKind = TileKind> {
@@ -135,6 +136,19 @@ export interface GitCommit {
   subject: string;
   when: string;
 }
+export interface FsEntry {
+  name: string;
+  /** relative to the root, "/"-separated */
+  path: string;
+  isDir: boolean;
+  size: number;
+}
+export interface FileContent {
+  text: string;
+  truncated: boolean;
+  binary: boolean;
+}
+
 export interface GitStatus {
   branch: string;
   upstream: string | null;

@@ -99,11 +99,12 @@ export function Rail() {
   const { fitView } = useReactFlow();
   const memoryOpen = useBoard((s) => s.ui.memoryOpen);
   const settingsOpen = useBoard((s) => s.ui.settingsOpen);
+  const codeOpen = useBoard((s) => s.ui.codeOpen);
   const setUi = useBoard.getState().setUi;
 
   return (
     <nav className="rail flex w-16 shrink-0 flex-col items-center gap-2 border-r border-line/60 bg-bg py-4" aria-label="Main">
-      <RailButton label="Board" active={!memoryOpen && !settingsOpen}>
+      <RailButton label="Board" active={!memoryOpen && !settingsOpen && !codeOpen}>
         <rect x="3" y="3" width="8" height="8" rx="2" />
         <rect x="13" y="3" width="8" height="5" rx="2" />
         <rect x="3" y="13" width="8" height="8" rx="2" />
@@ -111,6 +112,9 @@ export function Rail() {
       </RailButton>
       <AddTileButton />
       <InkButton />
+      <RailButton label="Code" active={codeOpen} onClick={() => setUi({ codeOpen: true })}>
+        <path d="M9 8l-4 4 4 4M15 8l4 4-4 4M13.5 5l-3 14" />
+      </RailButton>
       <RailButton label="Memory" active={memoryOpen} onClick={() => setUi({ memoryOpen: true })}>
         <path d="M6 3h9l4 4v14H6z" />
         <path d="M14 3v5h5M9 13h7M9 17h5" />

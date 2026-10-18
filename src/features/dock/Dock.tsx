@@ -160,6 +160,9 @@ export function Dock() {
       } else if (k === "g") {
         e.preventDefault();
         void groupSelected();
+      } else if (k === "e") {
+        e.preventDefault();
+        useBoard.getState().setUi({ codeOpen: true });
       } else if (k === "m") {
         e.preventDefault();
         useBoard.getState().setUi({ memoryOpen: true });
