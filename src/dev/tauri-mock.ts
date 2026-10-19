@@ -88,6 +88,8 @@ function mkAnalytics(days: number) {
     streaks: { current, longest },
     peakDay,
     topAgent: top ? { agent: top[0], tokens: top[1] } : null,
+    models: { "claude-opus-4-5": Math.round((agentTotals.claude ?? 0) * 0.7), "claude-sonnet-4-5": Math.round((agentTotals.claude ?? 0) * 0.3) },
+    longestSessionSecs: 4 * 3600 + 12 * 60,
   };
 }
 
@@ -225,7 +227,7 @@ w.__TAURI_INTERNALS__ = {
         return null;
       case "usage_all":
         return [
-          { id: "default-claude", name: "Claude (default)", provider: "anthropic", usage: { session: { percent: 34, resetsAt: new Date(Date.now() + 2 * 3600e3).toISOString() }, weekly: { percent: 71, resetsAt: null }, error: null } },
+          { id: "default-claude", name: "Claude (default)", provider: "anthropic", usage: { session: { percent: 34, resetsAt: new Date(Date.now() + 2 * 3600e3).toISOString() }, weekly: { percent: 71, resetsAt: new Date(Date.now() + 3 * 86400e3).toISOString() }, weeklyModels: [{ model: "Sonnet", percent: 17, resetsAt: new Date(Date.now() + 3 * 86400e3).toISOString() }], error: null } },
           { id: "default-codex", name: "Codex (default)", provider: "openai", usage: { session: { percent: 12, resetsAt: String(Date.now() + 3 * 3600e3) }, weekly: { percent: 40, resetsAt: null }, error: null } },
           { id: "prof-zai", name: "Z.ai GLM", provider: "zai", usage: { session: { percent: 1, resetsAt: String(Date.now() + 4 * 3600e3) }, weekly: { percent: 1, resetsAt: null }, error: null } },
         ];
@@ -247,6 +249,10 @@ w.__TAURI_INTERNALS__ = {
         return null;
       case "claude_usage":
         return { session: { percent: 34, resetsAt: new Date(Date.now() + 2 * 3600e3).toISOString() }, weekly: { percent: 71, resetsAt: null }, error: null };
+      case "usage_for_sessions": {
+        const ids = (args.sessionIds as string[]) ?? [];
+        return Object.fromEntries(ids.filter((i) => i === "s1").map((i) => [i, { tokens: 12_400, messages: 37, model: "claude-opus-4-5" }]));
+      }
       case "usage_analytics":
         return mkAnalytics(Number(args.days) || 30);
       case "attach_console": {

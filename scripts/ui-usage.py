@@ -36,12 +36,12 @@ with sync_playwright() as p:
     pg.wait_for_selector(".ring-pill")
     pg.wait_for_timeout(900)
 
-    # open the usage popover from the top bar
-    pg.get_by_role("button", name="Usage").click()
-    pop = pg.get_by_role("dialog", name="Usage by account")
-    pop.wait_for(timeout=3000)
-    btn = pop.get_by_role("button", name="Analytics…")
-    check(btn.count() == 1, "usage popover has Analytics… button")
+    # open the usage modal from the top bar, then the detailed analytics via Details
+    pg.get_by_role("button", name="Usage", exact=True).click()
+    modal = pg.get_by_role("dialog", name="Usage", exact=True)
+    modal.wait_for(timeout=3000)
+    btn = modal.get_by_role("button", name="Details")
+    check(btn.count() == 1, "usage modal has Details button")
 
     # open the analytics sheet
     btn.click()
@@ -101,7 +101,10 @@ with sync_playwright() as p:
 
     # Esc closes the sheet (and only the sheet)
     pg.keyboard.press("Escape")
-    pg.wait_for_timeout(500)
+    try:
+        pg.get_by_role("dialog", name="Usage analytics").wait_for(state="detached", timeout=3000)
+    except Exception:
+        pass
     check(pg.get_by_role("dialog", name="Usage analytics").count() == 0, "Esc closes the analytics sheet")
     check(pg.get_by_role("button", name="Usage", exact=True).is_visible(), "app still alive after close")
 

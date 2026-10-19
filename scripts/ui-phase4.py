@@ -60,10 +60,12 @@ with sync_playwright() as p:
     check(bool(saves) and '"ink"' in json.dumps(saves[-1]["args"]) and '"points"' in json.dumps(saves[-1]["args"]), "ink persisted via save_board")
 
     # ---- usage popover
-    pg.get_by_role("button", name="Usage").click()
-    dlg = pg.get_by_role("dialog", name="Usage by account")
-    check(dlg.count() == 1 and dlg.get_by_text("Z.ai GLM").count() == 1 and dlg.get_by_text("Codex (default)").count() == 1, "usage popover lists Claude/Codex/Z.ai")
+    pg.get_by_role("button", name="Usage", exact=True).click()
+    dlg = pg.get_by_role("dialog", name="Usage", exact=True)
+    dlg.wait_for(timeout=3000)
+    check(dlg.count() == 1 and dlg.get_by_role("tab", name="Z.ai GLM").count() == 1 and dlg.get_by_role("tab", name="Codex (default)").count() == 1, "usage modal lists Claude/Codex/Z.ai")
     pg.keyboard.press("Escape")
+    pg.wait_for_timeout(500)
 
     # ---- profiles: add a Z.ai provider + key, add a second Claude account
     pg.locator("button[aria-label='Settings']").first.click()

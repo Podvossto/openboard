@@ -108,6 +108,7 @@ pub fn run() {
             commands::delete_profile_key,
             commands::usage_all,
             commands::usage_analytics,
+            commands::usage_for_sessions,
             commands::sync_roster,
         ])
         .build(tauri::generate_context!())

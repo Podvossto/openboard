@@ -72,6 +72,8 @@ interface BoardState {
     settingsOpen: boolean;
     memoryOpen: boolean;
     usageAnalyticsOpen: boolean;
+    /** Usage modal: null = closed; consoleId focuses one console's own usage */
+    usageModal: { consoleId?: string } | null;
     ink: InkTool | null;
     codeOpen: boolean;
     /** file to open when the Code studio opens (pinned tile double-click) */
@@ -149,7 +151,7 @@ export const useBoard = create<BoardState>((set) => ({
   runtime: {},
   revision: 0,
   focused: null,
-  ui: { settingsOpen: false, memoryOpen: false, usageAnalyticsOpen: false, ink: null, codeOpen: false, codeTarget: null, addConsole: null },
+  ui: { settingsOpen: false, memoryOpen: false, usageAnalyticsOpen: false, usageModal: null, ink: null, codeOpen: false, codeTarget: null, addConsole: null },
 
   hydrate: (board) => set({ board, loaded: true }),
   setSettings: (settings, resolvedCwd) => set({ settings, resolvedCwd }),

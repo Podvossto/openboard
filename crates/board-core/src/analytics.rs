@@ -30,6 +30,10 @@ pub struct Analytics {
     pub streaks: Streaks,
     pub peak_day: Option<PeakDay>,
     pub top_agent: Option<TopAgent>,
+    /// Claude model id → tokens over the window (Codex logs carry no per-message model).
+    pub models: BTreeMap<String, u64>,
+    /// Longest single session (first → last logged message) in seconds; 0 when unknown.
+    pub longest_session_secs: u64,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
@@ -155,6 +159,68 @@ pub fn collect(sources: &[Source], days: usize) -> Analytics {
     agg.finish(days)
 }
 
+/// Token usage of ONE Claude session (per-console usage).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionUsage {
+    pub tokens: u64,
+    pub messages: u64,
+    /// model of the most recent message, when logged
+    pub model: Option<String>,
+}
+
+/// Sum tokens per Claude session id. Claude Code stores a session in
+/// `<config>/projects/<project>/<sessionId>.jsonl`, so only files whose stem is a
+/// requested id are read. Same `message.id`+`requestId` dedupe as `collect`. Ids with
+/// no log are absent from the result (never zero-filled).
+pub fn session_usage(sources: &[Source], ids: &[String]) -> HashMap<String, SessionUsage> {
+    let want: HashSet<&str> = ids.iter().map(String::as_str).collect();
+    let mut out: HashMap<String, SessionUsage> = HashMap::new();
+    for src in sources {
+        let Source::Claude { dir, .. } = src else {
+            continue;
+        };
+        for path in jsonl_files(&dir.join("projects"), SystemTime::UNIX_EPOCH) {
+            let key = file_key(&path);
+            if !want.contains(key.as_str()) {
+                continue;
+            }
+            let Ok(file) = std::fs::File::open(&path) else {
+                continue;
+            };
+            let mut seen: HashSet<(String, String)> = HashSet::new();
+            for line in std::io::BufReader::new(file).lines() {
+                let Ok(line) = line else { break };
+                if !line.contains("\"assistant\"") {
+                    continue;
+                }
+                let Ok(v) = serde_json::from_str::<ClaudeLine>(&line) else {
+                    continue;
+                };
+                if v.ty != Some("assistant") {
+                    continue;
+                }
+                let Some(m) = v.message else { continue };
+                let Some(u) = m.usage else { continue };
+                let k = (
+                    m.id.or(v.uuid).unwrap_or_default().to_owned(),
+                    v.request_id.unwrap_or_default().to_owned(),
+                );
+                if !seen.insert(k) {
+                    continue;
+                }
+                let e = out.entry(key.clone()).or_default();
+                e.tokens += u.total();
+                e.messages += 1;
+                if let Some(model) = m.model.filter(|m| real_model(m)) {
+                    e.model = Some(model.to_owned());
+                }
+            }
+        }
+    }
+    out
+}
+
 // ---------- Claude Code logs ----------
 
 #[derive(Deserialize)]
@@ -177,6 +243,8 @@ struct ClaudeLine<'a> {
 struct ClaudeMessage<'a> {
     #[serde(borrow)]
     id: Option<&'a str>,
+    #[serde(borrow)]
+    model: Option<&'a str>,
     usage: Option<ClaudeUsage>,
 }
 
@@ -233,6 +301,12 @@ fn scan_claude(dir: &Path, tag: &str, cutoff: SystemTime, agg: &mut Agg) {
             );
             if !agg.seen.insert(key) {
                 continue;
+            }
+            if let Some(model) = m.model.filter(|m| real_model(m)) {
+                *agg.models.entry(model.to_owned()).or_insert(0) += u.total();
+            }
+            if let (Some(s), Some(t)) = (v.session_id, v.timestamp.and_then(parse_secs)) {
+                agg.span(format!("{tag}:{s}"), t);
             }
             let day = agg.day_entry(day);
             *day.by_agent.entry("claude".into()).or_insert(0) += u.total();
@@ -300,15 +374,22 @@ fn scan_codex(dir: &Path, tag: &str, cutoff: SystemTime, agg: &mut Agg) {
             let Ok(v) = serde_json::from_str::<CodexLine>(&line) else {
                 continue;
             };
-            let day = || {
-                v.timestamp
-                    .and_then(parse_day)
-                    .filter(|d| agg.in_window(*d))
-            };
+            let in_day = v
+                .timestamp
+                .and_then(parse_day)
+                .filter(|d| agg.in_window(*d));
+            let day = || in_day;
             let payload = match v.payload {
                 Some(p) => p,
                 None => continue,
             };
+            if let Some(t) = v
+                .timestamp
+                .and_then(parse_secs)
+                .filter(|_| in_day.is_some())
+            {
+                agg.span(format!("{tag}:{}", file_key(&path)), t);
+            }
             match payload.ty {
                 Some("token_count") => {
                     let Some(info) = payload.info else { continue };
@@ -342,13 +423,21 @@ fn scan_codex(dir: &Path, tag: &str, cutoff: SystemTime, agg: &mut Agg) {
         }
         // one session per rollout file, counted on its last active day
         if let Some(day) = last_day.filter(|_| touched) {
-            let key = path
-                .file_stem()
-                .map(|s| s.to_string_lossy().into_owned())
-                .unwrap_or_else(|| path.display().to_string());
+            let key = file_key(&path);
             agg.day_entry(day).sessions.insert(format!("{tag}:{key}"));
         }
     }
+}
+
+fn file_key(path: &Path) -> String {
+    path.file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.display().to_string())
+}
+
+/// Claude writes `<synthetic>` for locally generated (non-API) messages.
+fn real_model(m: &str) -> bool {
+    !m.is_empty() && !m.starts_with('<')
 }
 
 // ---------- aggregation ----------
@@ -366,9 +455,18 @@ struct Agg {
     end: Option<NaiveDate>,
     days: HashMap<NaiveDate, DayCell>,
     seen: HashSet<(String, String)>,
+    models: HashMap<String, u64>,
+    /// session key → (first, last) message epoch seconds
+    spans: HashMap<String, (i64, i64)>,
 }
 
 impl Agg {
+    fn span(&mut self, key: String, t: i64) {
+        let e = self.spans.entry(key).or_insert((t, t));
+        e.0 = e.0.min(t);
+        e.1 = e.1.max(t);
+    }
+
     fn in_window(&self, d: NaiveDate) -> bool {
         matches!((self.start, self.end), (Some(s), Some(e)) if d >= s && d <= e)
     }
@@ -385,6 +483,13 @@ impl Agg {
             streaks: Streaks::default(),
             peak_day: None,
             top_agent: None,
+            models: self.models.into_iter().collect(),
+            longest_session_secs: self
+                .spans
+                .values()
+                .map(|(a, b)| (b - a).max(0) as u64)
+                .max()
+                .unwrap_or(0),
         };
         let mut active: Vec<bool> = Vec::with_capacity(days);
         let mut agent_totals: BTreeMap<String, u64> = BTreeMap::new();
@@ -440,6 +545,10 @@ impl Agg {
             .map(|(agent, tokens)| TopAgent { agent, tokens });
         out
     }
+}
+
+fn parse_secs(ts: &str) -> Option<i64> {
+    DateTime::parse_from_rfc3339(ts).ok().map(|t| t.timestamp())
 }
 
 fn parse_day(ts: &str) -> Option<NaiveDate> {
@@ -749,5 +858,41 @@ mod tests {
         assert_eq!(a.streaks.current, 1); // yesterday only; today quiet so far
         assert_eq!(a.streaks.longest, 1);
         assert_eq!(a.totals.active_days, 1);
+    }
+
+    #[test]
+    fn models_longest_session_and_session_usage() {
+        let d = tempfile::tempdir().unwrap();
+        let line = |id: &str, model: &str, when: String| {
+            claude_line(id, &format!("r{id}"), &when, 100).replace(
+                r#""role":"assistant""#,
+                &format!(r#""role":"assistant","model":"{model}""#),
+            )
+        };
+        let t0 = Local::now() - Duration::hours(3);
+        let t1 = t0 + Duration::minutes(90);
+        write(
+            &d.path().join("projects/-p/s1.jsonl"),
+            &[
+                line("1", "claude-opus-4", t0.to_rfc3339()),
+                line("2", "claude-sonnet-4", t1.to_rfc3339()),
+                line("3", "<synthetic>", t1.to_rfc3339()),
+            ],
+        );
+        let src = [Source::Claude {
+            dir: d.path().to_path_buf(),
+            tag: "claude".into(),
+        }];
+        let a = collect(&src, 7);
+        assert_eq!(a.models["claude-opus-4"], 120);
+        assert_eq!(a.models["claude-sonnet-4"], 120);
+        assert!(!a.models.contains_key("<synthetic>"));
+        assert_eq!(a.longest_session_secs, 90 * 60);
+
+        let su = session_usage(&src, &["s1".into(), "nope".into()]);
+        assert_eq!(su.len(), 1);
+        assert_eq!(su["s1"].tokens, 360);
+        assert_eq!(su["s1"].messages, 3);
+        assert_eq!(su["s1"].model.as_deref(), Some("claude-sonnet-4"));
     }
 }

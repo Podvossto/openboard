@@ -13,11 +13,22 @@ pub struct Window {
     pub resets_at: Option<String>,
 }
 
+/// Weekly window scoped to one model family (Anthropic `seven_day_opus` / `seven_day_sonnet`).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelWindow {
+    pub model: String,
+    pub percent: f64,
+    pub resets_at: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Usage {
     pub session: Option<Window>,
     pub weekly: Option<Window>,
+    /// per-model weekly limits when the plan reports them (empty otherwise)
+    pub weekly_models: Vec<ModelWindow>,
     pub error: Option<String>,
 }
 
@@ -32,9 +43,20 @@ pub fn parse(v: &serde_json::Value) -> Usage {
                 .map(str::to_owned),
         })
     };
+    let weekly_models = [("Opus", "seven_day_opus"), ("Sonnet", "seven_day_sonnet")]
+        .into_iter()
+        .filter_map(|(model, key)| {
+            w(key).map(|x| ModelWindow {
+                model: model.into(),
+                percent: x.percent,
+                resets_at: x.resets_at,
+            })
+        })
+        .collect();
     Usage {
         session: w("five_hour"),
         weekly: w("seven_day"),
+        weekly_models,
         error: None,
     }
 }
@@ -197,6 +219,7 @@ pub fn parse_codex_line(v: &serde_json::Value) -> Option<Usage> {
         session: w("primary"),
         weekly: w("secondary"),
         error: None,
+        ..Default::default()
     };
     (u.session.is_some() || u.weekly.is_some()).then_some(u)
 }
@@ -233,12 +256,17 @@ mod tests {
         let v = serde_json::json!({
             "five_hour": {"utilization": 12.0, "resets_at": "2026-10-18T10:00:00Z"},
             "seven_day": {"utilization": 90.5, "resets_at": null},
-            "seven_day_opus": null
+            "seven_day_opus": null,
+            "seven_day_sonnet": {"utilization": 17.0, "resets_at": "2026-10-23T09:00:00Z"}
         });
         let u = parse(&v);
         assert_eq!(u.session.unwrap().percent, 12.0);
         assert_eq!(u.weekly.as_ref().unwrap().percent, 90.5);
         assert_eq!(u.weekly.unwrap().resets_at, None);
+        // null opus window is skipped; sonnet is kept
+        assert_eq!(u.weekly_models.len(), 1);
+        assert_eq!(u.weekly_models[0].model, "Sonnet");
+        assert_eq!(u.weekly_models[0].percent, 17.0);
     }
 
     #[test]

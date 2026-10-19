@@ -4,6 +4,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   AccountUsage,
+  SessionUsage,
   AgentKind,
   Analytics,
   KeyStatus,
@@ -81,6 +82,9 @@ export const ipc = {
     invoke<void>("sync_roster", { roster }),
   usageAll: () => invoke<AccountUsage[]>("usage_all"),
   usageAnalytics: (days: number) => invoke<Analytics>("usage_analytics", { days }),
+  /** tokens per Claude session id (ids with no log are absent) */
+  usageForSessions: (sessionIds: string[]) =>
+    invoke<Record<string, SessionUsage>>("usage_for_sessions", { sessionIds }),
   gitStatus: (cwd: string) => invoke<GitStatus>("git_status", { cwd }),
   gitRun: (cwd: string, action: GitAction, message = "") => invoke<string>("git_run", { cwd, action, message }),
   fsList: (root: string, rel: string) => invoke<FsEntry[]>("fs_list", { root, rel }),

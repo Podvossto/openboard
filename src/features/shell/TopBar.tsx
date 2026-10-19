@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { AnimatePresence, motion } from "motion/react";
-import { popVariants, spring } from "../../lib/motion";
+import { spring } from "../../lib/motion";
 import { ask } from "../../lib/dialog";
 import { ipc } from "../../lib/ipc";
 import type { AccountUsage, Usage, Workspace } from "../../lib/types";
-import { useDismiss } from "../dock/useDismiss";
 import { activeWorkspace, statusCounts, useBoard } from "../../store/board";
 import { cleanName, formatReset, nextInCycle, nextWorkspaceName, pct, usageLabel, usageLevel, usageTooltip } from "./format";
 
@@ -99,8 +98,6 @@ function Tab({ ws, active, canRemove }: { ws: Workspace; active: boolean; canRem
   );
 }
 
-const PROVIDER_DOT: Record<string, string> = { anthropic: "#e8784b", openai: "#8aa4ff", zai: "#4fd1a1" };
-
 function UsageBars({ u, color }: { u: Usage; color: string }) {
   return (
     <span className="flex w-8 flex-col gap-[2.5px]" aria-hidden="true">
@@ -123,10 +120,7 @@ const RING: Record<"danger" | "warn" | "ok" | "idle", [string, string]> = {
 /** Top-bar usage pill styled per reference image: resets indicator + click opens analytics */
 function UsagePill() {
   const [all, setAll] = useState<AccountUsage[] | null>(null);
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const close = useCallback(() => setOpen(false), []);
-  useDismiss(open, ref, close);
+  const open = useBoard((s) => !!s.ui.usageModal);
 
   useEffect(() => {
     let alive = true;
@@ -152,13 +146,14 @@ function UsagePill() {
   const resetStr = formatReset(main.usage.session) || formatReset(main.usage.weekly);
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative">
       <button
         className="usage-pill flex h-8 items-center gap-2 rounded-full border border-line bg-surface-2 px-3 text-[12px] font-medium text-ink transition hover:bg-surface-3 hover:border-line-strong active:scale-95"
         title={usageTooltip(main.usage) + " — click for usage & analytics"}
         aria-expanded={open}
+        aria-haspopup="dialog"
         aria-label="Usage"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => useBoard.getState().setUi({ usageModal: open ? null : {} })}
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-ink-3">
           <circle cx="12" cy="12" r="10" />
@@ -171,67 +166,6 @@ function UsagePill() {
         {resetStr && <span className="text-ink-3 text-[11px] truncate">{resetStr}</span>}
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            variants={popVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            style={{ transformOrigin: "top right" }}
-            role="dialog"
-            aria-label="Usage by account"
-            className="glass absolute right-0 top-[calc(100%+8px)] z-50 w-[350px] rounded-2xl p-2.5 shadow-2xl"
-          >
-            <div className="px-2.5 pb-2 pt-1 flex items-center justify-between border-b border-line/60">
-              <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-ink-3">Usage & Quotas</span>
-              <button
-                className="text-[11.5px] font-semibold text-accent hover:underline"
-                onClick={() => {
-                  setOpen(false);
-                  useBoard.getState().setUi({ usageAnalyticsOpen: true });
-                }}
-              >
-                Analytics…
-              </button>
-            </div>
-            <div className="mt-1.5 flex flex-col gap-1">
-              {all.map((a) => {
-                const lv = a.usage.error ? "idle" : usageLevel(a.usage);
-                const c = RING[lv][0];
-                return (
-                  <div key={a.id} className="rounded-xl px-2.5 py-2 hover:bg-surface-2/70 transition">
-                    <div className="flex items-center gap-2">
-                      <span className="size-2 rounded-full" style={{ background: PROVIDER_DOT[a.provider] ?? "#a9aab6" }} />
-                      <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink">{a.name}</span>
-                      {a.usage.error && <span className="truncate text-[11.5px] text-ink-3">{a.usage.error}</span>}
-                    </div>
-                    {!a.usage.error && (
-                      <div className="mt-1.5 grid grid-cols-2 gap-3 pl-4">
-                        {(["session", "weekly"] as const).map((k) => {
-                          const w = a.usage[k];
-                          return (
-                            <div key={k}>
-                              <div className="flex items-baseline justify-between text-[11px]">
-                                <span className="text-ink-3">{k === "session" ? "5-hour" : "Weekly"}</span>
-                                <span className="font-semibold tabular-nums text-ink">{w ? `${pct(w.percent)}%` : "—"}</span>
-                              </div>
-                              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-3">
-                                <i className="block h-full rounded-full" style={{ width: `${pct(w?.percent)}%`, background: c }} />
-                              </div>
-                              <div className="mt-0.5 text-[10px] text-ink-3">{formatReset(w)}</div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
