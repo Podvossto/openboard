@@ -1,10 +1,14 @@
 import type { Node, NodeChange } from "@xyflow/react";
-import type { ConsoleNode, Group, Tile } from "../../lib/types";
+import type { ConsoleNode, Group, Section, Tile } from "../../lib/types";
 
 export type ConsoleFlowNode = Node<{ console: ConsoleNode }, "console">;
 export type GroupFlowNode = Node<{ group: Group }, "group">;
 export type TileFlowNode = Node<{ tile: Tile }, "tile">;
-export type AppNode = ConsoleFlowNode | GroupFlowNode | TileFlowNode;
+export type SectionFlowNode = Node<{ section: Section }, "section">;
+export type AppNode = ConsoleFlowNode | GroupFlowNode | TileFlowNode | SectionFlowNode;
+
+/** Sections sit far below everything (selection elevation adds +1000, still below 0). */
+export const SECTION_Z = -2000;
 
 /**
  * Merge persisted groups + consoles into React Flow nodes, keeping React Flow-owned fields
@@ -12,9 +16,31 @@ export type AppNode = ConsoleFlowNode | GroupFlowNode | TileFlowNode;
  * Groups come first (React Flow requires parents before children).
  * Console positions are relative to their group (`parentId`) — same as the store.
  */
-export function reconcile(consoles: ConsoleNode[], groups: Group[], prev: AppNode[], tiles: Tile[] = []): AppNode[] {
+export function reconcile(
+  consoles: ConsoleNode[],
+  groups: Group[],
+  prev: AppNode[],
+  tiles: Tile[] = [],
+  sections: Section[] = [],
+): AppNode[] {
   const byId = new Map(prev.map((n) => [n.id, n]));
   const groupIds = new Set(groups.map((g) => g.id));
+
+  const sectionNodes: SectionFlowNode[] = sections.map((s) => {
+    const old = byId.get(s.id);
+    const dragging = old?.dragging ?? false;
+    return {
+      ...(old as SectionFlowNode | undefined),
+      id: s.id,
+      type: "section",
+      position: dragging && old ? old.position : { x: s.x, y: s.y },
+      width: s.width,
+      height: s.height,
+      dragHandle: ".section-header",
+      zIndex: SECTION_Z,
+      data: { section: s },
+    };
+  });
 
   const groupNodes: GroupFlowNode[] = groups.map((g) => {
     const old = byId.get(g.id);
@@ -81,12 +107,12 @@ export function reconcile(consoles: ConsoleNode[], groups: Group[], prev: AppNod
     return node;
   });
 
-  return [...groupNodes, ...consoleNodes, ...tileNodes];
+  return [...sectionNodes, ...groupNodes, ...consoleNodes, ...tileNodes];
 }
 
 export interface Persist {
   id: string;
-  kind: "console" | "group" | "tile";
+  kind: "console" | "group" | "tile" | "section";
   patch: Partial<{ x: number; y: number; width: number; height: number }>;
 }
 
@@ -95,11 +121,12 @@ export function persistableChanges(
   changes: NodeChange[],
   groupIds: ReadonlySet<string> = new Set(),
   tileIds: ReadonlySet<string> = new Set(),
+  sectionIds: ReadonlySet<string> = new Set(),
 ): Persist[] {
   const out: Persist[] = [];
   for (const ch of changes) {
     const id = "id" in ch ? ch.id : "";
-    const kind = groupIds.has(id) ? "group" : tileIds.has(id) ? "tile" : "console";
+    const kind = sectionIds.has(id) ? "section" : groupIds.has(id) ? "group" : tileIds.has(id) ? "tile" : "console";
     if (ch.type === "position" && ch.position && ch.dragging === false) {
       out.push({ id: ch.id, kind, patch: { x: Math.round(ch.position.x), y: Math.round(ch.position.y) } });
     } else if (ch.type === "dimensions" && ch.dimensions && ch.resizing === false) {

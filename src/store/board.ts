@@ -1,6 +1,7 @@
 // CONTRACT: central zustand store. All features read/write board state ONLY through these
 // actions. Runtime (status/running) is NOT persisted; everything in `board` is.
 import { create } from "zustand";
+import { adoptedSection } from "../features/board/sections";
 import type {
   AgentKind,
   Board,
@@ -9,6 +10,7 @@ import type {
   HookLogEntry,
   InkStroke,
   Preset,
+  Section,
   Tile,
   Settings,
   Status,
@@ -52,7 +54,7 @@ export const GROUP_COLORS = ["#7c9cff", "#5fd4a8", "#f2b45c", "#e57ad8", "#6fd0e
 const emptyBoard = (): Board => ({
   version: 2,
   active: "ws-main",
-  workspaces: [{ id: "ws-main", name: "Main", viewport: { x: 0, y: 0, zoom: 1 }, consoles: [], groups: [], memory: "" }],
+  workspaces: [{ id: "ws-main", name: "Main", viewport: { x: 0, y: 0, zoom: 1 }, consoles: [], groups: [], sections: [], memory: "" }],
   presets: [],
 });
 
@@ -113,6 +115,19 @@ interface BoardState {
   patchGroup: (id: string, patch: Partial<Group>) => void;
   /** remove group; its consoles become ungrouped at their absolute position */
   removeGroup: (id: string) => void;
+
+  // sections (big labelled frames; members keep absolute coords + carry `section`)
+  addSection: (s: Section) => void;
+  patchSection: (id: string, patch: Partial<Section>) => void;
+  /** move the frame AND every member by the same delta */
+  moveSection: (id: string, x: number, y: number) => void;
+  /** remove the frame only; members stay where they are, just unassigned */
+  removeSection: (id: string) => void;
+  /** re-run adopt/release for every loose console / group / tile (after a section resize) */
+  refreshSectionMembership: () => void;
+  /** section currently highlighted because an item is being dragged over it (transient) */
+  sectionHot: string | null;
+  setSectionHot: (id: string | null) => void;
 
   // presets
   savePreset: (p: Preset) => void;
@@ -260,6 +275,68 @@ export const useBoard = create<BoardState>((set) => ({
       }),
       revision: s.revision + 1,
     })),
+
+  addSection: (sec) =>
+    set((s) => ({
+      board: withActive(s.board, (w) => ({ ...w, sections: [...(w.sections ?? []), sec] })),
+      revision: s.revision + 1,
+    })),
+  patchSection: (id, patch) =>
+    set((s) => ({
+      board: withActive(s.board, (w) => ({
+        ...w,
+        sections: (w.sections ?? []).map((x) => (x.id === id ? { ...x, ...patch } : x)),
+      })),
+      revision: s.revision + 1,
+    })),
+  moveSection: (id, x, y) =>
+    set((s) => ({
+      board: withActive(s.board, (w) => {
+        const sec = (w.sections ?? []).find((v) => v.id === id);
+        if (!sec) return w;
+        const dx = x - sec.x;
+        const dy = y - sec.y;
+        const shift = <T extends { section?: string; x: number; y: number }>(m: T): T =>
+          m.section === id ? { ...m, x: m.x + dx, y: m.y + dy } : m;
+        return {
+          ...w,
+          sections: (w.sections ?? []).map((v) => (v.id === id ? { ...v, x, y } : v)),
+          consoles: w.consoles.map(shift),
+          groups: w.groups.map(shift),
+          tiles: (w.tiles ?? []).map(shift),
+        };
+      }),
+      revision: s.revision + 1,
+    })),
+  removeSection: (id) =>
+    set((s) => ({
+      board: withActive(s.board, (w) => {
+        const clear = <T extends { section?: string }>(m: T): T => (m.section === id ? { ...m, section: undefined } : m);
+        return {
+          ...w,
+          sections: (w.sections ?? []).filter((v) => v.id !== id),
+          consoles: w.consoles.map(clear),
+          groups: w.groups.map(clear),
+          tiles: (w.tiles ?? []).map(clear),
+        };
+      }),
+      revision: s.revision + 1,
+    })),
+  refreshSectionMembership: () =>
+    set((s) => ({
+      board: withActive(s.board, (w) => {
+        const secs = w.sections ?? [];
+        const re = <T extends { section?: string; x: number; y: number; width: number; height: number; group?: string }>(m: T): T => {
+          if (m.group) return m;
+          const next = adoptedSection(m, secs, m.section);
+          return next === m.section ? m : { ...m, section: next };
+        };
+        return { ...w, consoles: w.consoles.map(re), groups: w.groups.map(re), tiles: (w.tiles ?? []).map(re) };
+      }),
+      revision: s.revision + 1,
+    })),
+  sectionHot: null,
+  setSectionHot: (sectionHot) => set((s) => (s.sectionHot === sectionHot ? s : { sectionHot })),
 
   savePreset: (p) =>
     set((s) => ({

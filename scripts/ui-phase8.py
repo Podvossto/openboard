@@ -41,7 +41,7 @@ with sync_playwright() as p:
     radial = pg.get_by_role("menu", name="Radial context menu")
     check(radial.count() == 1, "right-click empty canvas opens radial menu")
     items = radial.get_by_role("menuitem")
-    check(items.count() == 8, f"radial has 8 items ({items.count()})")
+    check(items.count() == 9, f"radial has 9 items ({items.count()})")
     hub = radial.locator("button").first.bounding_box()
     first = items.first.bounding_box()
     check(first is not None and hub is not None and abs(first["y"] - hub["y"]) > 40, "items fan out from the hub")

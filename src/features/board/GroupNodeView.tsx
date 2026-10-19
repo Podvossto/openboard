@@ -208,7 +208,7 @@ export const GroupNodeView = memo(function GroupNodeView({ data, selected }: Nod
 });
 
 /** Renders the group menu on <body> so member consoles (drawn above the group frame) can't cover it. */
-function FloatingMenu({ anchor, popRef, children }: { anchor: React.RefObject<HTMLDivElement | null>; popRef: React.RefObject<HTMLDivElement | null>; children: ReactNode }) {
+export function FloatingMenu({ anchor, popRef, children }: { anchor: React.RefObject<HTMLDivElement | null>; popRef: React.RefObject<HTMLDivElement | null>; children: ReactNode }) {
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
   useLayoutEffect(() => {
     const r = anchor.current?.getBoundingClientRect();

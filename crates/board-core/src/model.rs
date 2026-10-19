@@ -41,6 +41,9 @@ pub struct Workspace {
     pub consoles: Vec<ConsoleNode>,
     #[serde(default)]
     pub groups: Vec<Group>,
+    /// Large labelled canvas frames; members carry `section` and keep absolute coordinates.
+    #[serde(default)]
+    pub sections: Vec<Section>,
     /// Shared notes for this workspace. Only sent to a console when the user asks.
     #[serde(default)]
     pub memory: String,
@@ -60,6 +63,7 @@ impl Workspace {
             viewport: Viewport::default(),
             consoles: vec![],
             groups: vec![],
+            sections: vec![],
             memory: String::new(),
             tiles: vec![],
             ink: vec![],
@@ -94,6 +98,22 @@ pub struct Group {
     pub y: f64,
     pub width: f64,
     pub height: f64,
+    /// Section this group frame belongs to (absolute coordinates).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub section: Option<String>,
+}
+
+/// Large labelled canvas frame that can hold consoles, groups and tiles.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Section {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
 }
 
 /// A board tile that is not a terminal. `data` is owned by the frontend per `kind`
@@ -112,6 +132,8 @@ pub struct Tile {
     pub height: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub section: Option<String>,
     #[serde(default)]
     pub data: serde_json::Value,
 }
@@ -144,6 +166,9 @@ pub struct ConsoleNode {
     pub height: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
+    /// Section this (ungrouped) console belongs to; x/y are absolute then.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub section: Option<String>,
     /// Agent-side session id used for resume (Claude: the `--session-id` we assigned).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_session: Option<String>,
@@ -289,6 +314,28 @@ mod tests {
         .unwrap();
         assert_eq!(w.data["preset"], serde_json::json!("iphone-15-pro"));
         assert_eq!(w.data["zoom"], serde_json::json!("fit"));
+    }
+
+    #[test]
+    fn sections_roundtrip_and_old_boards_load() {
+        let old: Workspace = serde_json::from_str(r#"{"id":"a","name":"A"}"#).unwrap();
+        assert!(old.sections.is_empty());
+        let w: Workspace = serde_json::from_str(
+            r##"{"id":"a","name":"A",
+                "sections":[{"id":"s1","name":"Section 1","color":"#7c9cff","x":1,"y":2,"width":900,"height":600}],
+                "groups":[{"id":"g","name":"G","color":"#fff","x":0,"y":0,"width":9,"height":9,"section":"s1"}],
+                "tiles":[{"id":"t","kind":"note","x":0,"y":0,"width":1,"height":1,"section":"s1","data":{}}]}"##,
+        )
+        .unwrap();
+        assert_eq!(w.sections[0].width, 900.0);
+        assert_eq!(w.groups[0].section.as_deref(), Some("s1"));
+        assert_eq!(w.tiles[0].section.as_deref(), Some("s1"));
+        let back: Workspace = serde_json::from_str(&serde_json::to_string(&w).unwrap()).unwrap();
+        assert_eq!(back, w);
+        // members without a section don't serialise the key
+        assert!(!serde_json::to_string(&old)
+            .unwrap()
+            .contains("\"section\":"));
     }
 
     #[test]

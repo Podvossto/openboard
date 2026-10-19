@@ -21,6 +21,8 @@ export interface ConsoleNode {
   width: number;
   height: number;
   group?: string;
+  /** ABSOLUTE position + member of a Section (only when ungrouped) */
+  section?: string;
   agentSession?: string;
   /** automation loop (off unless enabled by the user) */
   loop?: LoopConfig;
@@ -55,6 +57,19 @@ export interface LoopConfig {
 }
 
 export interface Group {
+  id: string;
+  name: string;
+  color: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** member of a Section (group frames only; position is absolute) */
+  section?: string;
+}
+
+/** Big labelled canvas frame. Members keep absolute coords and carry `section: id`. */
+export interface Section {
   id: string;
   name: string;
   color: string;
@@ -127,6 +142,8 @@ export interface Tile<K extends TileKind = TileKind> {
   width: number;
   height: number;
   group?: string;
+  /** member of a Section (only when ungrouped) */
+  section?: string;
   data: TileData[K];
 }
 
@@ -136,6 +153,8 @@ export interface Workspace {
   viewport: Viewport;
   consoles: ConsoleNode[];
   groups: Group[];
+  /** may be missing in boards saved before sections existed */
+  sections?: Section[];
   memory: string;
   /** may be missing in boards saved before tiles existed */
   tiles?: Tile[];

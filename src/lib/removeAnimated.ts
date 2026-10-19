@@ -5,14 +5,15 @@ import { EXIT_MS } from "./motion";
 
 const reduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-export function removeAnimated(kind: "console" | "tile" | "group", id: string) {
+export function removeAnimated(kind: "console" | "tile" | "group" | "section", id: string) {
   const st = useBoard.getState();
   const finish = () => {
     const s = useBoard.getState();
     s.setLeaving(id, false);
     if (kind === "console") s.removeConsole(id);
     else if (kind === "tile") s.removeTile(id);
-    else s.removeGroup(id);
+    else if (kind === "group") s.removeGroup(id);
+    else s.removeSection(id);
   };
   if (reduced()) return finish();
   st.setLeaving(id, true);

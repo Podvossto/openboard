@@ -21,7 +21,7 @@ let board: unknown = {
         { id: "c4", title: "docs-2", agent: { kind: "custom", program: "" }, cwd: "", x: 732, y: 64, width: 680, height: 420, group: "g1" },
       ],
     },
-    { id: "ws-2", name: "Research", viewport: { x: 0, y: 0, zoom: 1 }, consoles: [], groups: [], memory: "" },
+    { id: "ws-2", name: "Research", viewport: { x: 0, y: 0, zoom: 1 }, consoles: [], groups: [], sections: [], memory: "" },
   ],
   presets: [
     { id: "preset-pair", name: "Pair (Claude + Codex)", members: [{ title: "builder", agent: { kind: "claudeCode" } }, { title: "reviewer", agent: { kind: "codex" } }] },
