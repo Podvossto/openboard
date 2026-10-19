@@ -46,6 +46,7 @@ with sync_playwright() as p:
     pg.wait_for_timeout(600)
     sheet = pg.locator("aside[aria-label='Settings'], .sheet")
     check(sheet.count() >= 1, "Settings panel opened")
+    sheet.get_by_role("tab", name="Agents & CLIs").click(); pg.wait_for_timeout(300)
     check("Claude Code" in sheet.inner_text(), "Claude account card visible in Settings")
     check("dev@example.com" in sheet.inner_text(), "Claude logged-in detail visible in Settings")
 

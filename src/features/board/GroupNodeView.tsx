@@ -1,4 +1,5 @@
-import { memo, useCallback, useRef, useState } from "react";
+import { memo, useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { NodeResizer, type NodeProps } from "@xyflow/react";
 import { ask } from "../../lib/dialog";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -28,8 +29,9 @@ export const GroupNodeView = memo(function GroupNodeView({ data, selected }: Nod
   const [editing, setEditing] = useState(false);
   const [menu, setMenu] = useState<"main" | "color" | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
-  useDismiss(menu !== null, menuRef, closeMenu);
+  useDismiss(menu !== null, [menuRef, popRef], closeMenu);
 
   const changeGroupCwd = async () => {
     setMenu(null);
@@ -54,13 +56,10 @@ export const GroupNodeView = memo(function GroupNodeView({ data, selected }: Nod
     const ok = await ask(confirmMsg, { title: "Group working directory", kind: "info" });
     if (!ok) return;
 
-    for (const c of members) {
-      st.patchConsole(c.id, { cwd: picked });
-      if (st.runtime[c.id]?.running) {
-        await ipc.kill(c.id).catch(() => undefined);
-        await terminalControls.get(c.id)?.start(false);
-      }
-    }
+    for (const c of members) st.patchConsole(c.id, { cwd: picked });
+    // restart running members in parallel (each relaunch is independent)
+    // start() stops the old process itself before relaunching in the new folder
+    await Promise.all(runningMembers.map((c) => terminalControls.get(c.id)?.start(false)));
   };
 
   /** Opens the New console dialog targeted at the next free slot in this group. */
@@ -159,8 +158,10 @@ export const GroupNodeView = memo(function GroupNodeView({ data, selected }: Nod
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
           </button>
+          {menu !== null && (
+            <FloatingMenu anchor={menuRef} popRef={popRef}>
           {menu === "main" && (
-            <div className="menu glass animate-pop !rounded-xl !border-line !bg-transparent" role="menu">
+            <div className="menu glass animate-pop !static !rounded-xl !border-line" role="menu">
               <button className="menu-item" role="menuitem" onClick={() => { setMenu(null); setEditing(true); }}>
                 Rename
               </button>
@@ -184,7 +185,7 @@ export const GroupNodeView = memo(function GroupNodeView({ data, selected }: Nod
             </div>
           )}
           {menu === "color" && (
-            <div className="menu color-menu glass animate-pop !rounded-xl !border-line !bg-transparent" role="menu">
+            <div className="menu color-menu glass animate-pop !static !rounded-xl !border-line" role="menu">
               <div className="swatches">
                 {GROUP_COLORS.map((col) => (
                   <button
@@ -198,11 +199,29 @@ export const GroupNodeView = memo(function GroupNodeView({ data, selected }: Nod
               </div>
             </div>
           )}
+            </FloatingMenu>
+          )}
         </div>
       </div>
     </motion.div>
   );
 });
+
+/** Renders the group menu on <body> so member consoles (drawn above the group frame) can't cover it. */
+function FloatingMenu({ anchor, popRef, children }: { anchor: React.RefObject<HTMLDivElement | null>; popRef: React.RefObject<HTMLDivElement | null>; children: ReactNode }) {
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  useLayoutEffect(() => {
+    const r = anchor.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+  }, [anchor]);
+  if (!pos) return null;
+  return createPortal(
+    <div ref={popRef} className="nodrag fixed z-[80]" style={{ top: pos.top, right: pos.right }}>
+      {children}
+    </div>,
+    document.body,
+  );
+}
 
 function Mini({ tone, n }: { tone: string; n: number }) {
   return (

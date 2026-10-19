@@ -69,6 +69,7 @@ with sync_playwright() as p:
     pg.locator("button[aria-label='Settings']").first.click()
     pg.wait_for_timeout(400)
     sheet = pg.get_by_role("dialog", name="Settings")
+    sheet.get_by_role("tab", name="Providers & Accounts").click(); pg.wait_for_timeout(200)
     sheet.get_by_role("button", name="+ Provider").click()
     grp = sheet.get_by_role("group", name="New provider")
     grp.get_by_role("button", name="Z.ai (GLM Coding Plan)").click()

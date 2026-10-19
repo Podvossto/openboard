@@ -83,11 +83,12 @@ with sync_playwright() as p:
 
     # remove a tile
     note.hover()
-    note.get_by_role("button", name="Remove Note").click()
+    note.get_by_role("button", name="Tile options").click()
+    pg.get_by_role("button", name="Remove tile").click()
     pg.wait_for_timeout(300)
     check(pg.locator(".tile[data-kind='note']").count() == 0, "tile removed")
 
-    pg.get_by_role("button", name="Fit all").click()
+    pg.get_by_role("button", name="Fit view").click()
     pg.wait_for_timeout(600)
     pg.screenshot(path="/tmp/ab-tiles.png")
     check(not errors, "no page errors " + "; ".join(errors[:2]))

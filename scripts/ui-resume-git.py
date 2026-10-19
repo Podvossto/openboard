@@ -109,7 +109,7 @@ with sync_playwright() as p:
     check(any(e["cmd"] == "git_create_branch" and e["args"].get("name") == "feature-x" for e in log), "git_create_branch invoked")
     check(git.locator("ul[aria-label='Branches'] li").count() == 3, "new branch appears in the list")
 
-    pg.get_by_role("button", name="Fit all").click()
+    pg.get_by_role("button", name="Fit view").click()
     pg.wait_for_timeout(600)
     pg.screenshot(path="/tmp/ab-resume-git.png")
     check(not errors, "no page errors " + "; ".join(errors[:2]))

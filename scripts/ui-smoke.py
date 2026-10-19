@@ -35,7 +35,7 @@ with sync_playwright() as p:
     pg.get_by_role("button", name="+ Shell").click(); pg.wait_for_timeout(600)
     check(pg.locator(".console").count() == 3, "+ Shell adds a console")
     # drag a console by its header (fit all first; wait for the fitView animation)
-    pg.get_by_role("button", name="Fit all").click(); pg.wait_for_timeout(700)
+    pg.get_by_role("button", name="Fit view").click(); pg.wait_for_timeout(700)
     h = pg.locator(".console-header").nth(0).bounding_box()
     pg.mouse.move(h["x"] + 60, h["y"] + 10); pg.mouse.down()
     pg.mouse.move(h["x"] + 160, h["y"] + 210, steps=8); pg.mouse.up()

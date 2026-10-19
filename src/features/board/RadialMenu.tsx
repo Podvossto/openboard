@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useIsPresent } from "motion/react";
 import { spring } from "../../lib/motion";
 import { createConsole } from "../../lib/actions";
 import { addTile } from "../tiles/addTile";
@@ -29,6 +29,7 @@ const RADIUS = 88;
 
 export function RadialMenu({ x, y, flowX, flowY, onClose, onOpenAddConsoleDialog }: RadialMenuProps) {
   const rf = useReactFlow();
+  const present = useIsPresent();
   const [hovered, setHovered] = useState<string | null>(null);
 
   useEffect(() => {
@@ -39,10 +40,11 @@ export function RadialMenu({ x, y, flowX, flowY, onClose, onOpenAddConsoleDialog
       const target = e.target as HTMLElement;
       if (!target.closest("[data-radial-menu]")) onClose();
     };
-    window.addEventListener("keydown", onKey);
+    // capture phase: a focused textarea/terminal must not swallow Esc
+    window.addEventListener("keydown", onKey, true);
     window.addEventListener("mousedown", onDown, true);
     return () => {
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("mousedown", onDown, true);
     };
   }, [onClose]);
@@ -177,16 +179,16 @@ export function RadialMenu({ x, y, flowX, flowY, onClose, onOpenAddConsoleDialog
   return (
     <div
       data-radial-menu
-      className="fixed z-[90] pointer-events-auto select-none"
+      className={`fixed z-[90] select-none ${present ? "pointer-events-auto" : "pointer-events-none"}`}
       style={{ left: x, top: y }}
-      role="menu"
-      aria-label="Radial context menu"
+      role={present ? "menu" : undefined}
+      aria-label={present ? "Radial context menu" : undefined}
     >
       {/* Outer blurred backdrop ring */}
       <motion.div
         initial={{ scale: 0.6, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.6, opacity: 0 }}
+        exit={{ scale: 0.6, opacity: 0, transition: { duration: 0.12, ease: [0.4, 0, 1, 1] } }}
         transition={spring.snappy}
         className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none rounded-full bg-black/40 backdrop-blur-md border border-line/50 shadow-[0_16px_50px_rgba(0,0,0,0.85)]"
         style={{ width: RADIUS * 2 + 70, height: RADIUS * 2 + 70 }}
@@ -197,7 +199,7 @@ export function RadialMenu({ x, y, flowX, flowY, onClose, onOpenAddConsoleDialog
         type="button"
         initial={{ scale: 0, rotate: -45 }}
         animate={{ scale: 1, rotate: 0 }}
-        exit={{ scale: 0, rotate: -45 }}
+        exit={{ scale: 0, rotate: -45, transition: { duration: 0.12, ease: [0.4, 0, 1, 1] } }}
         transition={spring.soft}
         onClick={onClose}
         className="absolute -translate-x-1/2 -translate-y-1/2 size-12 rounded-full border border-line-strong bg-surface flex flex-col items-center justify-center text-ink shadow-lg z-10 transition hover:bg-surface-2 hover:border-accent active:scale-95"
@@ -240,7 +242,7 @@ export function RadialMenu({ x, y, flowX, flowY, onClose, onOpenAddConsoleDialog
               scale: hovered === item.id ? 1.15 : 1,
               opacity: 1,
             }}
-            exit={{ x: 0, y: 0, scale: 0, opacity: 0 }}
+            exit={{ x: 0, y: 0, scale: 0, opacity: 0, transition: { duration: 0.12, ease: [0.4, 0, 1, 1] } }}
             transition={{
               ...spring.soft,
               delay: i * 0.015,

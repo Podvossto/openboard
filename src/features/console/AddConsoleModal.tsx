@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { fadeVariants, popVariants } from "../../lib/motion";
 import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
@@ -28,7 +28,8 @@ export function AddConsoleModal({ onClose, targetPos, targetGroup }: AddConsoleM
   const ws = activeWorkspace(st.board);
   const settings = useBoard((s) => s.settings);
   const resolvedCwd = useBoard((s) => s.resolvedCwd);
-  const allProfiles = useBoard((s) => s.settings.profiles ?? []);
+  const profilesRaw = useBoard((s) => s.settings.profiles);
+  const allProfiles = useMemo(() => profilesRaw ?? [], [profilesRaw]);
 
   const [catalog, setCatalog] = useState<CatalogStatus[]>([]);
   const [selectedCli, setSelectedCli] = useState<string>("claudeCode");

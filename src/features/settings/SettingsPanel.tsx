@@ -127,7 +127,7 @@ function CatalogItem({ item }: { item: CatalogStatus }) {
 }
 
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
-  const [activeTab, setActiveTab] = useState<TabId>("general");
+  const [activeTab, setActiveTab] = useState<TabId>(() => (useBoard.getState().ui.settingsTab as TabId | undefined) ?? "general");
   const [draft, setDraft] = useState<Settings>(() => useBoard.getState().settings);
   const resolvedCwd = useBoard((s) => s.resolvedCwd);
   const [detected, setDetected] = useState<Detected | null>(null);
@@ -268,6 +268,8 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           {tabs.map((t) => (
             <button
               key={t.id}
+              role="tab"
+              aria-selected={activeTab === t.id}
               onClick={() => setActiveTab(t.id)}
               className={`rounded-full px-3.5 py-1 text-[12.5px] font-medium transition ${
                 activeTab === t.id

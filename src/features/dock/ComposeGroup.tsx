@@ -78,7 +78,8 @@ export function ComposeGroup({
 }) {
   const [overrides, setOverrides] = useState<Record<number, MemberOverride>>({});
   const [editing, setEditing] = useState<number | null>(null);
-  const allProfiles = useBoard((s) => s.settings.profiles ?? []);
+  const profilesRaw = useBoard((s) => s.settings.profiles);
+  const allProfiles = useMemo(() => profilesRaw ?? [], [profilesRaw]);
   const setOv = (i: number, p: MemberOverride) => setOverrides((o) => ({ ...o, [i]: { ...o[i], ...p } }));
   const [orchestrated, setOrchestrated] = useState(false);
   const [name, setName] = useState("Team");

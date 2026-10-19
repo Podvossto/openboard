@@ -1,11 +1,14 @@
 import { useEffect, type RefObject } from "react";
 
 /** Close a popover on outside pointerdown or Escape while `open`. */
-export function useDismiss(open: boolean, ref: RefObject<HTMLElement | null>, onClose: () => void) {
+/** Close on outside pointerdown / Esc. `ref` may be several elements (e.g. an anchor + a portaled menu). */
+export function useDismiss(open: boolean, ref: RefObject<HTMLElement | null> | RefObject<HTMLElement | null>[], onClose: () => void) {
   useEffect(() => {
     if (!open) return;
+    const refs = Array.isArray(ref) ? ref : [ref];
     const down = (e: PointerEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      const inside = refs.some((r) => r.current?.contains(e.target as Node));
+      if (!inside && refs.some((r) => r.current)) onClose();
     };
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();

@@ -157,7 +157,7 @@ function UsagePill() {
         className="usage-pill flex h-8 items-center gap-2 rounded-full border border-line bg-surface-2 px-3 text-[12px] font-medium text-ink transition hover:bg-surface-3 hover:border-line-strong active:scale-95"
         title={usageTooltip(main.usage) + " — click for usage & analytics"}
         aria-expanded={open}
-        aria-label="Usage details"
+        aria-label="Usage"
         onClick={() => setOpen((o) => !o)}
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-ink-3">
@@ -192,7 +192,7 @@ function UsagePill() {
                   useBoard.getState().setUi({ usageAnalyticsOpen: true });
                 }}
               >
-                Open Analytics ↗
+                Analytics…
               </button>
             </div>
             <div className="mt-1.5 flex flex-col gap-1">
@@ -249,6 +249,8 @@ export function TopBar() {
   const ws = activeWorkspace(board);
   const ids = useMemo(() => ws.consoles.map((c) => c.id), [ws.consoles]);
   const counts = statusCounts(runtime, ids);
+  /** running PTYs on every workspace (the per-status pills are for the active one) */
+  const live = Object.values(runtime).filter((r) => r?.running).length;
   const needsIds = ids.filter((id) => runtime[id]?.running && runtime[id]?.status === "needsYou");
   const lastJump = useRef<string | null>(null);
 
@@ -361,10 +363,13 @@ export function TopBar() {
 
       {/* Right section: Live status, status pills, usage, actions */}
       <div className="flex shrink-0 items-center gap-2">
-        {counts.working > 0 && (
-          <span className="flex h-8 items-center gap-2 rounded-full border border-ok/40 bg-ok/10 px-3 text-[12px] font-semibold text-ok tabular-nums">
+        {live > 0 && (
+          <span
+            className="flex h-8 items-center gap-2 rounded-full border border-ok/40 bg-ok/10 px-3 text-[12px] font-semibold text-ok tabular-nums"
+            title={`${live} running across all workspaces`}
+          >
             <span className="size-2 rounded-full bg-ok animate-pulse" />
-            <span>{counts.working} live</span>
+            <span>{live} live</span>
           </span>
         )}
         {pill("working", counts.working, "working")}

@@ -41,6 +41,9 @@ export async function ask(
   message: string,
   options?: { title?: string; kind?: "danger" | "warning" | "info"; confirmText?: string; cancelText?: string },
 ): Promise<boolean> {
+  // headless UI tests (mock mode only) can opt into auto-accept, like the old native dialog mock
+  const w = window as unknown as { __autoConfirm?: boolean };
+  if (import.meta.env.MODE === "mock" && w.__autoConfirm !== false) return true;
   return useDialogStore.getState().show({
     message,
     title: options?.title,

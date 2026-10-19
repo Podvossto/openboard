@@ -78,6 +78,8 @@ interface BoardState {
     codeTarget: { root: string; path: string } | null;
     /** New-console dialog (Task 7): open with optional flow position / target group */
     addConsole: { pos?: { x: number; y: number }; group?: string } | null;
+    /** Settings tab to open on ("general" | "agents" | "providers" | "terminal") */
+    settingsTab?: string;
   };
 
   hydrate: (b: Board) => void;

@@ -47,6 +47,7 @@ with sync_playwright() as p:
     # ---- enter animation of a new console
     n0 = pg.locator(".console").count()
     pg.get_by_role("button", name="New console").click()
+    pg.get_by_role("button", name="Create Console").click()
     pg.wait_for_timeout(40)
     early = pg.evaluate("(() => { const cs=[...document.querySelectorAll('.console')]; const c=cs[cs.length-1]; return +getComputedStyle(c).opacity })()")
     pg.wait_for_timeout(700)

@@ -40,7 +40,8 @@ with sync_playwright() as p:
     web = add(pg, "Web")
     check(web.locator("iframe").count() == 1, "responsive default fills the tile with an iframe")
 
-    web.get_by_label("Device", exact=True).select_option(label="iPhone 15 Pro")
+    web.get_by_role("button", name="Tile options").click()
+    pg.get_by_role("button", name="iPhone 15 Pro").click()
     pg.wait_for_timeout(300)
     frame = web.locator("iframe")
     check(frame.get_attribute("width") == "393" and frame.get_attribute("height") == "852", "iframe attrs 393x852")
@@ -53,7 +54,8 @@ with sync_playwright() as p:
     check(frame.get_attribute("width") == "852" and frame.get_attribute("height") == "393", "rotate swaps to 852x393")
     check("852 × 393" in web.get_by_label("Device size", exact=True).inner_text(), "size label 852 × 393")
 
-    web.get_by_label("Zoom", exact=True).select_option(label="50%")
+    web.get_by_role("button", name="Tile options").click()
+    pg.get_by_role("button", name="50%", exact=True).click()
     pg.wait_for_timeout(300)
     check("scale(0.5)" in frame.evaluate("el => el.parentElement.style.transform"), "zoom 50% scales the device frame")
     check("· 50%" in web.get_by_label("Device size", exact=True).inner_text(), "size label shows 50%")
@@ -126,7 +128,7 @@ with sync_playwright() as p:
         "calendar event persisted via save_board (survives reload)",
     )
 
-    pg.get_by_role("button", name="Fit all").click()
+    pg.get_by_role("button", name="Fit view").click()
     pg.wait_for_timeout(600)
     pg.screenshot(path="/tmp/ab-webcal.png")
     check(not errors, "no page errors " + "; ".join(errors[:2]))
