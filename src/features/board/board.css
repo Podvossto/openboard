@@ -41,3 +41,24 @@
 .react-flow__node.dragging,
 .react-flow.is-resizing .react-flow__node,
 .react-flow__node:has(.react-flow__resize-control:active) { transition: none; }
+
+/* Sections: faint tinted frame BELOW everything. Wrapper ignores the pointer so the interior pans
+   the canvas; only the title pill (drag handle) and the resize handles take input. */
+.section-frame {
+  position: relative; width: 100%; height: 100%; border-radius: 26px;
+  background: color-mix(in srgb, var(--sc) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sc) 38%, transparent);
+  transition: background 160ms var(--ease-out-soft), border-color 160ms var(--ease-out-soft), box-shadow 200ms var(--ease-out-soft);
+}
+.section-frame.selected { border-color: var(--sc); }
+.section-frame.hot {
+  background: color-mix(in srgb, var(--sc) 12%, transparent); border-color: var(--sc);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sc) 20%, transparent), 0 0 48px -12px var(--sc);
+}
+.react-flow__node-section { pointer-events: none !important; background: transparent !important; border: 0 !important; padding: 0 !important; box-shadow: none !important; }
+.react-flow__node-section .section-header,
+.react-flow__node-section .react-flow__resize-control { pointer-events: auto; }
+.section-header {
+  position: absolute; top: 10px; left: 12px; border-radius: 999px;
+  background: color-mix(in srgb, var(--sc) 14%, var(--color-surface)); border: 1px solid color-mix(in srgb, var(--sc) 45%, transparent);
+}

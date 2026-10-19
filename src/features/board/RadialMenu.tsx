@@ -4,7 +4,8 @@ import { spring } from "../../lib/motion";
 import { createConsole } from "../../lib/actions";
 import { addTile } from "../tiles/addTile";
 import { DEFAULT_PEN } from "../ink/InkToolbar";
-import { useBoard } from "../../store/board";
+import { activeWorkspace, useBoard } from "../../store/board";
+import { newSectionAt } from "./sections";
 import { useReactFlow } from "@xyflow/react";
 import type { TileKind } from "../../lib/types";
 
@@ -154,6 +155,23 @@ export function RadialMenu({ x, y, flowX, flowY, onClose, onOpenAddConsoleDialog
         </svg>
       ),
       action: () => addTileAt("git"),
+    },
+    {
+      id: "section",
+      label: "+ Section",
+      color: "#6fd0e8",
+      icon: (s = 16) => (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="3" strokeDasharray="3 3" />
+          <line x1="3" y1="9" x2="10" y2="9" />
+        </svg>
+      ),
+      action: () => {
+        onClose();
+        const st = useBoard.getState();
+        const secs = activeWorkspace(st.board).sections ?? [];
+        st.addSection(newSectionAt(`sec-${crypto.randomUUID().slice(0, 8)}`, flowX, flowY, secs));
+      },
     },
     {
       id: "draw",

@@ -140,6 +140,7 @@ mod tests {
             width: 640.0,
             height: 400.0,
             group: None,
+            section: None,
             agent_session: Some("s".into()),
             loop_cfg: None,
             profile: None,
