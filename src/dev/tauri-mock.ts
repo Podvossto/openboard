@@ -32,6 +32,7 @@ let settings = {
   notifyNeedsYou: true, blinkNeedsYou: true, fontSize: 13, showUsage: true, autoResume: false,
   // UI tests can seed profiles with an init script (window.__seedProfiles)
   profiles: ((window as unknown as { __seedProfiles?: unknown[] }).__seedProfiles ?? []) as unknown[],
+  agentPresets: ((window as unknown as { __seedPresets?: unknown[] }).__seedPresets ?? []) as unknown[],
 };
 const running = new Set<string>(["c1", "c3"]);
 const log: { cmd: string; args: unknown }[] = [];
@@ -247,6 +248,11 @@ w.__TAURI_INTERNALS__ = {
         (window as unknown as { __roster?: unknown }).__roster = args.roster;
         return null;
       case "usage_all":
+        // UI tests: window.__usageErr makes every account fail (pill must still show why)
+        if ((window as unknown as { __usageErr?: string }).__usageErr) {
+          const e = (window as unknown as { __usageErr: string }).__usageErr;
+          return [{ id: "default-claude", name: "Claude (default)", provider: "anthropic", usage: { session: null, weekly: null, error: e } }];
+        }
         return [
           { id: "default-claude", name: "Claude (default)", provider: "anthropic", usage: { session: { percent: 34, resetsAt: new Date(Date.now() + 2 * 3600e3).toISOString() }, weekly: { percent: 71, resetsAt: new Date(Date.now() + 3 * 86400e3).toISOString() }, weeklyModels: [{ model: "Sonnet", percent: 17, resetsAt: new Date(Date.now() + 3 * 86400e3).toISOString() }], error: null } },
           { id: "default-codex", name: "Codex (default)", provider: "openai", usage: { session: { percent: 12, resetsAt: String(Date.now() + 3 * 3600e3) }, weekly: { percent: 40, resetsAt: null }, error: null } },
@@ -347,6 +353,7 @@ w.__TAURI_INTERNALS__ = {
       }
       case "spawn_console": {
         const id = (args.args as { id: string }).id;
+        ((window as unknown as { __spawns?: unknown[] }).__spawns ??= []).push(args.args);
         running.add(id);
         return null;
       }
