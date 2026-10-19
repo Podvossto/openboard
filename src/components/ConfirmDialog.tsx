@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useIsPresent } from "motion/react";
 import { popVariants, fadeVariants } from "../lib/motion";
 import { useDialogStore } from "../lib/dialog";
 
@@ -27,20 +27,7 @@ export function ConfirmDialog() {
   return (
     <AnimatePresence>
       {dialog && (
-        <motion.div
-          variants={fadeVariants}
-          initial="initial"
-          animate="animate"
-          exit="exit"
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) respond(false);
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="confirm-dialog-title"
-          aria-describedby="confirm-dialog-desc"
-        >
+        <Backdrop key="confirm" onOutside={() => respond(false)}>
           <motion.div
             variants={popVariants}
             initial="initial"
@@ -114,8 +101,31 @@ export function ConfirmDialog() {
               </button>
             </div>
           </motion.div>
-        </motion.div>
+        </Backdrop>
       )}
     </AnimatePresence>
+  );
+}
+
+/** Backdrop + dialog semantics; drops role/interaction while the exit animation plays. */
+function Backdrop({ children, onOutside }: { children: React.ReactNode; onOutside: () => void }) {
+  const present = useIsPresent();
+  return (
+    <motion.div
+      variants={fadeVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${present ? "" : "pointer-events-none"}`}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onOutside();
+      }}
+      role={present ? "dialog" : undefined}
+      aria-modal={present ? "true" : undefined}
+      aria-labelledby={present ? "confirm-dialog-title" : undefined}
+      aria-describedby={present ? "confirm-dialog-desc" : undefined}
+    >
+      {children}
+    </motion.div>
   );
 }
