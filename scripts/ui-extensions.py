@@ -28,22 +28,21 @@ with sync_playwright() as p:
     pg.evaluate("window.__autoConfirm = false")
 
     # ---- open from rail
-    check(pg.get_by_role("button", name="Skills", exact=True).count() == 1, "rail has Skills")
-    check(pg.get_by_role("button", name="MCP", exact=True).count() == 1, "rail has MCP")
-    pg.get_by_role("button", name="Skills", exact=True).click()
+    check(pg.get_by_role("button", name="Skills & MCP", exact=True).count() >= 1 and pg.get_by_role("button", name="MCP", exact=True).count() == 0, "Skills & MCP entry present, no separate MCP rail button")
+    pg.get_by_role("button", name="Skills & MCP", exact=True).first.click()
     dlg = pg.get_by_role("dialog", name="Skills and MCP")
     dlg.wait_for()
     pg.wait_for_timeout(500)
     check(dlg.get_by_role("tab", name="Skills", selected=True).count() == 1, "opens on Skills tab")
     cards = dlg.get_by_test_id("skill-card")
-    check(cards.count() == 3, f"3 claude skills listed ({cards.count()})")
+    check(cards.count() == 4, f"4 skills listed, claude + codex unified ({cards.count()})")
     check(dlg.get_by_text("pdf-tools").count() >= 1, "skill name shown")
     ls = ipc(pg, "list_skills")[-1]["args"]
-    check(ls["cli"] == "claude" and ls["cwd"] == "C:/Users/dev", f"list_skills args {ls}")
+    check(ls["cwd"] == "C:/Users/dev", f"list_skills args {ls}")
 
     # search + scope filter
     dlg.get_by_label("Search skills").fill("review")
-    check(cards.count() == 1, "search filters skills")
+    check(cards.count() == 2, "search filters skills (code-review + codex review)")
     dlg.get_by_label("Search skills").fill("")
     dlg.get_by_role("radiogroup", name="Scope filter").get_by_role("radio", name="Project").click()
     check(cards.count() == 1, "project scope filter")
@@ -66,7 +65,7 @@ with sync_playwright() as p:
     check(len(c) == 1 and c[0]["args"]["name"] == "my-new-skill" and c[0]["args"]["scope"] == "user"
           and c[0]["args"]["description"] == "Does a thing" and c[0]["args"]["body"].startswith("# Steps")
           and c[0]["args"]["cli"] == "claude", f"create_skill args {c}")
-    check(cards.count() == 4 and dlg.get_by_text("my-new-skill").count() >= 1, "new skill appears")
+    check(cards.count() == 5 and dlg.get_by_text("my-new-skill").count() >= 1, "new skill appears")
 
     # ---- delete with in-app confirm (cancel then OK)
     dlg.get_by_role("button", name="Delete my-new-skill").click()
@@ -75,7 +74,7 @@ with sync_playwright() as p:
     check(cd.count() == 1, "in-app confirm shown")
     cd.get_by_role("button", name="Cancel").click()
     pg.wait_for_timeout(400)
-    check(len(ipc(pg, "delete_skill")) == 0 and cards.count() == 4, "cancel keeps skill")
+    check(len(ipc(pg, "delete_skill")) == 0 and cards.count() == 5, "cancel keeps skill")
     check(dlg.count() == 1, "panel still open after cancel")
     dlg.get_by_role("button", name="Delete my-new-skill").click()
     pg.wait_for_timeout(400)
@@ -83,14 +82,11 @@ with sync_playwright() as p:
     pg.wait_for_timeout(500)
     d = ipc(pg, "delete_skill")
     check(len(d) == 1 and d[0]["args"]["name"] == "my-new-skill" and d[0]["args"]["scope"] == "user", f"delete_skill args {d}")
-    check(cards.count() == 3, "skill removed from list")
+    check(cards.count() == 4, "skill removed from list")
 
-    # ---- CLI switch → Codex prompts
-    dlg.get_by_role("radiogroup", name="CLI").get_by_role("radio", name="Codex").click()
-    pg.wait_for_timeout(400)
-    check(cards.count() == 1 and dlg.get_by_text("prompt", exact=True).count() == 1, "codex prompts listed read-only")
+    # ---- codex prompt shown in the unified list, read-only
+    check(cards.filter(has_text="Review the current changes").count() == 1 and dlg.get_by_text("prompt", exact=True).count() == 1, "codex prompts listed read-only")
     check(dlg.get_by_role("button", name="Delete review").count() == 0, "no delete on prompts")
-    dlg.get_by_role("radiogroup", name="CLI").get_by_role("radio", name="Claude Code").click()
 
     # ---- MCP tab
     dlg.get_by_role("tab", name="MCP servers").click()
@@ -149,12 +145,11 @@ with sync_playwright() as p:
     pg.keyboard.press("Escape")
     pg.wait_for_timeout(1000)
     check(pg.get_by_role("dialog", name="Skills and MCP").count() == 0, "Esc closes panel")
-    pg.get_by_role("button", name="MCP", exact=True).click()
+    pg.get_by_role("button", name="Skills & MCP", exact=True).first.click()
     pg.get_by_role("dialog", name="Skills and MCP").wait_for()
-    check(pg.get_by_role("tab", name="MCP servers", selected=True).count() == 1, "rail MCP opens MCP tab")
     pg.get_by_role("button", name="Close skills and MCP").click()
     pg.wait_for_timeout(500)
-    pg.get_by_role("button", name="Skills & MCP").click()
+    pg.get_by_role("button", name="Skills & MCP").first.click()
     pg.get_by_role("dialog", name="Skills and MCP").wait_for()
     check(pg.get_by_role("dialog", name="Settings").count() == 0, "top-bar toolbox opens Skills & MCP (not Settings)")
     pg.screenshot(path="/tmp/ui-extensions.png")
