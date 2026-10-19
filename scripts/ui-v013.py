@@ -133,10 +133,11 @@ with sync_playwright() as p:
 
     # hover glow
     from PIL import Image
-    # an empty spot: top-right of the canvas (minimap is bottom-left, HUD bottom-right)
+    # an empty spot near the top-right of the canvas (minimap bottom-left, HUD bottom-right,
+    # v0.1.4 needs-you inbox sits in the top-right 316 px — measure left of it)
     if pg.get_by_role("button", name="Orchestrator HUD").count():
         pg.get_by_role("button", name="Orchestrator HUD").click()
-    x, y = int(pane["x"] + pane["width"] - 120), int(pane["y"] + 90)
+    x, y = int(pane["x"] + pane["width"] - 440), int(pane["y"] + 90)
     pg.mouse.move(5, 5)
     pg.wait_for_timeout(350)
     a = Image.open(io.BytesIO(pg.screenshot(clip={"x": x - 40, "y": y - 40, "width": 80, "height": 80}))).convert("L")

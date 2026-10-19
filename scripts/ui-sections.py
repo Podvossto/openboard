@@ -43,8 +43,12 @@ with sync_playwright() as p:
     # pan the board left so the right side is empty
     pane = pg.locator(".react-flow__pane")
     bb = pane.bounding_box()
-    pg.mouse.move(800, 500)
-    pg.mouse.wheel(1300, 1300)  # panOnScroll — empty area
+    # v0.1.4: the wheel zooms (no panOnScroll) — zoom out around the top-left corner so the
+    # board shrinks there and the right / bottom of the canvas is empty
+    pg.mouse.move(bb["x"] + 20, bb["y"] + 20)
+    for _ in range(4):
+        pg.mouse.wheel(0, 400)
+        pg.wait_for_timeout(120)
     pg.wait_for_timeout(500)
 
     # a loose note tile, away from where the section goes
