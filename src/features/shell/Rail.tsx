@@ -6,7 +6,11 @@ import { TILE_META } from "../tiles/logic";
 import { TileIcon } from "../tiles/TileIcon";
 import { useDismiss } from "../dock/useDismiss";
 import { DEFAULT_PEN } from "../ink/InkToolbar";
-import type { TileKind } from "../../lib/types";
+import type { AgentPreset, TileKind } from "../../lib/types";
+import { createFromPreset } from "../../lib/actions";
+import { PresetIcon } from "../presets/PresetIcon";
+import { PresetEditor } from "../presets/PresetEditor";
+import { AnimatePresence } from "motion/react";
 
 const KINDS: { kind: TileKind; hint: string }[] = [
   { kind: "note", hint: "Sticky note" },
@@ -96,6 +100,48 @@ function InkButton() {
   );
 }
 
+/** Item 3: the user's agent presets — click = new console, right-click = edit, + = create. */
+function PresetRail() {
+  const presets = useBoard((s) => s.settings.agentPresets ?? []);
+  const [editing, setEditing] = useState<AgentPreset | "new" | null>(null);
+  return (
+    <div className="flex flex-col items-center gap-1.5" aria-label="Agent presets" role="group">
+      {presets.map((p) => (
+        <button
+          key={p.id}
+          className="group relative grid size-10 place-items-center rounded-xl border transition hover:scale-105 active:scale-95"
+          style={{ borderColor: `${p.color}66`, background: `${p.color}1a` }}
+          title={`${p.name} — click to start · right-click to edit`}
+          aria-label={`Start ${p.name}`}
+          data-preset={p.id}
+          onClick={() => void createFromPreset(p)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setEditing(p);
+          }}
+        >
+          <PresetIcon icon={p.icon} size={19} agent={p.agent} />
+          <span className="pointer-events-none absolute left-[calc(100%+8px)] z-50 hidden whitespace-nowrap rounded-md bg-surface-3 px-2 py-1 text-[11.5px] text-ink shadow-lg group-hover:block">
+            {p.name}
+          </span>
+        </button>
+      ))}
+      <button
+        className="grid size-10 place-items-center rounded-xl border border-dashed border-line-strong text-ink-3 transition hover:border-accent hover:text-ink"
+        title="New agent preset (name, icon, CLI, role, skills, MCP)"
+        aria-label="New agent preset"
+        onClick={() => setEditing("new")}
+      >
+        <svg className="size-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+          <circle cx="10" cy="8" r="3.5" />
+          <path d="M3.5 20c.8-3.6 3.4-5.5 6.5-5.5 1.2 0 2.3.3 3.2.8M18 14v6M15 17h6" />
+        </svg>
+      </button>
+      <AnimatePresence>{editing && <PresetEditor preset={editing === "new" ? null : editing} onClose={() => setEditing(null)} />}</AnimatePresence>
+    </div>
+  );
+}
+
 export function Rail() {
   const memoryOpen = useBoard((s) => s.ui.memoryOpen);
   const settingsOpen = useBoard((s) => s.ui.settingsOpen);
@@ -120,12 +166,12 @@ export function Rail() {
         <path d="M6 3h9l4 4v14H6z" />
         <path d="M14 3v5h5M9 13h7M9 17h5" />
       </RailButton>
-      <RailButton label="Skills" active={ext === "skills"} onClick={() => setUi({ extensionsOpen: "skills" })}>
+      {/* item 12: one entry for Skills & MCP (tabs inside) */}
+      <RailButton label="Skills & MCP" active={!!ext} onClick={() => setUi({ extensionsOpen: "skills" })}>
         <path d="M12 3l2.4 5.2 5.6.7-4.1 3.9 1.1 5.6L12 15.6 7 18.4l1.1-5.6L4 8.9l5.6-.7z" />
       </RailButton>
-      <RailButton label="MCP" active={ext === "mcp"} onClick={() => setUi({ extensionsOpen: "mcp" })}>
-        <path d="M9 3v5M15 3v5M6 8h12v4a6 6 0 01-12 0zM12 18v3" />
-      </RailButton>
+      <div className="my-1 h-px w-8 bg-line/70" aria-hidden="true" />
+      <PresetRail />
       <div className="flex-1" />
     </nav>
   );

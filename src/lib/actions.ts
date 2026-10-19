@@ -1,6 +1,7 @@
 // CONTRACT: shared high-level actions. Features call these instead of re-implementing.
 import { ipc } from "./ipc";
-import type { AgentKind, ConsoleNode } from "./types";
+import type { AgentKind, AgentPreset, ConsoleNode } from "./types";
+import { consoleFromPreset } from "../features/presets/presets";
 import {
   activeWorkspace,
   agentShort,
@@ -32,6 +33,19 @@ export async function createConsole(agent?: AgentKind, opts: { title?: string; c
   };
   autoStart.add(id);
   st.addConsoles([node]);
+  return id;
+}
+
+/** Create (and auto-start) a console from an agent preset. */
+export async function createFromPreset(p: AgentPreset) {
+  const st = useBoard.getState();
+  const ws = activeWorkspace(st.board);
+  const id = await ipc.newId();
+  const n = ws.consoles.filter((c) => c.preset === p.id).length + 1;
+  const node: ConsoleNode = { ...consoleFromPreset(p, id, n), ...nextPosition(ws.consoles), width: CONSOLE_W, height: CONSOLE_H };
+  autoStart.add(id);
+  st.addConsoles([node]);
+  st.setFocused(id);
   return id;
 }
 
