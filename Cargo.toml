@@ -24,6 +24,7 @@ parking_lot = "0.12"
 which = "7"
 tempfile = "3"
 keyring = { version = "3" }
+toml = "1"
 
 [profile.release]
 lto = true

@@ -3,6 +3,11 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
+  AddMcpServer,
+  ExtCli,
+  ExtScope,
+  McpServer,
+  Skill,
   AccountUsage,
   UpdateInfo,
   AgentKind,
@@ -87,6 +92,16 @@ export const ipc = {
     invoke<void>("sync_roster", { roster }),
   usageAll: () => invoke<AccountUsage[]>("usage_all"),
   usageAnalytics: (days: number) => invoke<Analytics>("usage_analytics", { days }),
+  listSkills: (cli: ExtCli, profile: string | null, cwd: string | null) => invoke<Skill[]>("list_skills", { cli, profile, cwd }),
+  createSkill: (cli: ExtCli, profile: string | null, cwd: string | null, scope: ExtScope, name: string, description: string, body: string) =>
+    invoke<Skill>("create_skill", { cli, profile, cwd, scope, name, description, body }),
+  deleteSkill: (cli: ExtCli, profile: string | null, cwd: string | null, scope: ExtScope, name: string) =>
+    invoke<void>("delete_skill", { cli, profile, cwd, scope, name }),
+  listMcp: (cli: ExtCli, profile: string | null, cwd: string | null) => invoke<McpServer[]>("list_mcp", { cli, profile, cwd }),
+  addMcp: (cli: ExtCli, profile: string | null, cwd: string | null, server: AddMcpServer) =>
+    invoke<string>("add_mcp", { cli, profile, cwd, server }),
+  removeMcp: (cli: ExtCli, profile: string | null, cwd: string | null, name: string, scope: ExtScope) =>
+    invoke<string>("remove_mcp", { cli, profile, cwd, name, scope }),
   gitStatus: (cwd: string) => invoke<GitStatus>("git_status", { cwd }),
   gitRun: (cwd: string, action: GitAction, message = "") => invoke<string>("git_run", { cwd, action, message }),
   fsList: (root: string, rel: string) => invoke<FsEntry[]>("fs_list", { root, rel }),

@@ -174,6 +174,20 @@ function fsList(rel: string) {
   }
   return [...seen.values()].sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name));
 }
+
+/** Mutable fake skills / MCP servers for the Skills & MCP panel. */
+const extSkills: { cli: string; name: string; description: string; scope: "user" | "project"; path: string; kind: "skill" | "prompt" }[] = [
+  { cli: "claude", name: "pdf-tools", description: "Extract, merge and fill PDF files", scope: "user", path: "C:/Users/dev/.claude/skills/pdf-tools", kind: "skill" },
+  { cli: "claude", name: "code-review", description: "Review a diff for bugs and style", scope: "user", path: "C:/Users/dev/.claude/skills/code-review", kind: "skill" },
+  { cli: "claude", name: "deploy-notes", description: "Project release checklist", scope: "project", path: "C:/Users/dev/.claude/skills/deploy-notes", kind: "skill" },
+  { cli: "codex", name: "review", description: "Review the current changes", scope: "user", path: "C:/Users/dev/.codex/prompts/review.md", kind: "prompt" },
+];
+const extMcp: { cli: string; name: string; transport: string; command: string | null; args: string[]; url: string | null; envKeys: string[]; headerKeys: string[]; scope: "user" | "project"; source: string }[] = [
+  { cli: "claude", name: "context7", transport: "stdio", command: "npx", args: ["-y", "@upstash/context7-mcp"], url: null, envKeys: ["API_KEY"], headerKeys: [], scope: "user", source: "C:/Users/dev/.claude.json" },
+  { cli: "claude", name: "linear", transport: "http", command: null, args: [], url: "https://mcp.linear.app/mcp", envKeys: [], headerKeys: ["Authorization"], scope: "user", source: "C:/Users/dev/.claude.json" },
+  { cli: "claude", name: "local-db", transport: "stdio", command: "node", args: ["db.js"], url: null, envKeys: [], headerKeys: [], scope: "project", source: "C:/Users/dev/proj/.mcp.json" },
+  { cli: "codex", name: "docs", transport: "stdio", command: "npx", args: ["-y", "docs-mcp"], url: null, envKeys: [], headerKeys: [], scope: "user", source: "C:/Users/dev/.codex/config.toml" },
+];
 w.__ipcLog = log;
 w.__mock = { emit, send, running, analytics: mkAnalytics };
 w.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => undefined };
@@ -262,6 +276,48 @@ w.__TAURI_INTERNALS__ = {
         }
         (window as unknown as { __installed?: boolean }).__installed = true;
         return null;
+      }
+      case "list_skills": {
+        const cli = String(args.cli);
+        return extSkills.filter((x) => x.cli === cli && (x.scope === "user" || args.cwd)).map((x) => ({ ...x, cli: undefined }));
+      }
+      case "create_skill": {
+        const cli = String(args.cli);
+        const name = String(args.name);
+        if (extSkills.some((x) => x.cli === cli && x.scope === args.scope && x.name === name)) throw `pty: skill "${name}" already exists`;
+        extSkills.push({ cli, name, description: String(args.description), scope: args.scope as "user" | "project", path: `C:/Users/dev/.${cli}/skills/${name}`, kind: "skill" });
+        return { name, description: String(args.description), scope: args.scope, path: `C:/Users/dev/.${cli}/skills/${name}`, kind: "skill" };
+      }
+      case "delete_skill": {
+        const i = extSkills.findIndex((x) => x.cli === args.cli && x.scope === args.scope && x.name === args.name);
+        if (i < 0) throw `pty: skill "${String(args.name)}" not found`;
+        extSkills.splice(i, 1);
+        return null;
+      }
+      case "list_mcp":
+        return extMcp.filter((x) => x.cli === args.cli && (x.scope === "user" || args.cwd)).map((x) => ({ ...x, cli: undefined }));
+      case "add_mcp": {
+        const sv = args.server as { name: string; transport: string; command: string; args: string[]; url: string; env: [string, string][]; scope: "user" | "project" };
+        if (sv.name === "fail") throw "pty: error: MCP server fail already exists in user config";
+        extMcp.push({
+          cli: String(args.cli),
+          name: sv.name,
+          transport: sv.transport,
+          command: sv.transport === "stdio" ? sv.command : null,
+          args: sv.args,
+          url: sv.transport === "stdio" ? null : sv.url,
+          envKeys: sv.env.map((e) => e[0]),
+          headerKeys: [],
+          scope: sv.scope,
+          source: sv.scope === "user" ? "C:/Users/dev/.claude.json" : "C:/Users/dev/proj/.mcp.json",
+        });
+        return `Added ${sv.name}`;
+      }
+      case "remove_mcp": {
+        const i = extMcp.findIndex((x) => x.cli === args.cli && x.scope === args.scope && x.name === args.name);
+        if (i < 0) throw `pty: No MCP server found with name: ${String(args.name)}`;
+        extMcp.splice(i, 1);
+        return `Removed ${String(args.name)}`;
       }
       case "usage_analytics":
         return mkAnalytics(Number(args.days) || 30);

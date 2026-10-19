@@ -100,11 +100,12 @@ export function Rail() {
   const memoryOpen = useBoard((s) => s.ui.memoryOpen);
   const settingsOpen = useBoard((s) => s.ui.settingsOpen);
   const codeOpen = useBoard((s) => s.ui.codeOpen);
+  const ext = useBoard((s) => s.ui.extensionsOpen);
   const setUi = useBoard.getState().setUi;
 
   return (
     <nav className="rail flex w-16 shrink-0 flex-col items-center gap-2 border-r border-line/60 bg-bg py-4" aria-label="Main">
-      <RailButton label="Board" active={!memoryOpen && !settingsOpen && !codeOpen}>
+      <RailButton label="Board" active={!memoryOpen && !settingsOpen && !codeOpen && !ext}>
         <rect x="3" y="3" width="8" height="8" rx="2" />
         <rect x="13" y="3" width="8" height="5" rx="2" />
         <rect x="3" y="13" width="8" height="8" rx="2" />
@@ -118,6 +119,12 @@ export function Rail() {
       <RailButton label="Memory" active={memoryOpen} onClick={() => setUi({ memoryOpen: true })}>
         <path d="M6 3h9l4 4v14H6z" />
         <path d="M14 3v5h5M9 13h7M9 17h5" />
+      </RailButton>
+      <RailButton label="Skills" active={ext === "skills"} onClick={() => setUi({ extensionsOpen: "skills" })}>
+        <path d="M12 3l2.4 5.2 5.6.7-4.1 3.9 1.1 5.6L12 15.6 7 18.4l1.1-5.6L4 8.9l5.6-.7z" />
+      </RailButton>
+      <RailButton label="MCP" active={ext === "mcp"} onClick={() => setUi({ extensionsOpen: "mcp" })}>
+        <path d="M9 3v5M15 3v5M6 8h12v4a6 6 0 01-12 0zM12 18v3" />
       </RailButton>
       <div className="flex-1" />
     </nav>

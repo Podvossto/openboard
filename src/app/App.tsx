@@ -8,6 +8,7 @@ import { Board } from "../features/board/Board";
 import { TopBar } from "../features/shell/TopBar";
 import { Rail } from "../features/shell/Rail";
 import { Dock } from "../features/dock/Dock";
+import { ExtensionsPanel } from "../features/extensions/ExtensionsPanel";
 import { SettingsPanel } from "../features/settings/SettingsPanel";
 import { MemoryPanel } from "../features/dock/MemoryPanel";
 import { UsageAnalytics } from "../features/usage/UsageAnalytics";
@@ -88,6 +89,7 @@ export function App() {
         <AnimatePresence>
           {ui.settingsOpen && <SettingsPanel key="settings" onClose={() => useBoard.getState().setUi({ settingsOpen: false })} />}
           {ui.codeOpen && <CodePanel key="code" onClose={() => useBoard.getState().setUi({ codeOpen: false, codeTarget: null })} />}
+          {ui.extensionsOpen && <ExtensionsPanel key="extensions" tab={ui.extensionsOpen} onClose={() => useBoard.getState().setUi({ extensionsOpen: null })} />}
           {ui.memoryOpen && <MemoryPanel key="memory" onClose={() => useBoard.getState().setUi({ memoryOpen: false })} />}
           {ui.usageAnalyticsOpen && <UsageAnalytics key="usage-analytics" onClose={() => useBoard.getState().setUi({ usageAnalyticsOpen: false })} />}
         </AnimatePresence>

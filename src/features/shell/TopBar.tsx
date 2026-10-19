@@ -386,7 +386,7 @@ export function TopBar() {
           className="grid size-8 place-items-center rounded-full border border-line bg-surface-2 text-ink-3 transition hover:bg-surface-3 hover:text-ink active:scale-95"
           title="Skills & MCP Tools"
           aria-label="Skills & MCP"
-          onClick={() => useBoard.getState().setUi({ settingsOpen: true })}
+          onClick={() => useBoard.getState().setUi({ extensionsOpen: "skills" })}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
             <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />

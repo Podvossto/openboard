@@ -395,4 +395,40 @@ export interface UpdateInfo {
   currentVersion: string;
   notes: string | null;
   date: string | null;
+// ---------- Skills & MCP (board-core::extensions) ----------
+export type ExtCli = "claude" | "codex";
+export type ExtScope = "user" | "project";
+export type McpTransport = "stdio" | "http" | "sse";
+
+export interface Skill {
+  name: string;
+  description: string;
+  scope: ExtScope;
+  path: string;
+  /** "skill" = folder with SKILL.md · "prompt" = Codex prompts/*.md (read-only) */
+  kind: "skill" | "prompt";
+}
+
+export interface McpServer {
+  name: string;
+  transport: McpTransport;
+  command: string | null;
+  args: string[];
+  /** credentials in the URL are already masked by the backend */
+  url: string | null;
+  envKeys: string[];
+  headerKeys: string[];
+  scope: ExtScope;
+  source: string;
+}
+
+export interface AddMcpServer {
+  name: string;
+  transport: McpTransport;
+  command: string;
+  args: string[];
+  url: string;
+  env: [string, string][];
+  headers: [string, string][];
+  scope: ExtScope;
 }
