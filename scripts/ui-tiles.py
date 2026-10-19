@@ -32,7 +32,11 @@ with sync_playwright() as p:
     note = add(pg, "Note")
     check(note.count() == 1, "note tile added")
     note.get_by_label("Note text").fill("remember the API key rotation")
-    pg.wait_for_timeout(1800)  # note debounce 400ms + autosave debounce
+    # note debounce 400ms + autosave debounce — poll instead of a fixed sleep (CI load)
+    try:
+        pg.wait_for_function("(window.__ipcLog||[]).some(e => e.cmd === 'save_board' && JSON.stringify(e.args).includes('remember the API key rotation'))", timeout=6000)
+    except Exception:
+        pass
     saves = [e for e in pg.evaluate("window.__ipcLog") if e["cmd"] == "save_board"]
     import json as _j
     check(bool(saves) and "remember the API key rotation" in _j.dumps(saves[-1]["args"]), "note text saved via save_board")
