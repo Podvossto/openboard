@@ -68,7 +68,36 @@ pub fn launch_spec(kind: &AgentKind, mode: Mode<'_>, settings_file: Option<&Path
 
 /// Resolve a program on PATH (handles `.exe`/`.cmd` shims on Windows, e.g. npm installs).
 pub fn resolve(program: &str) -> Result<PathBuf> {
-    which::which(program).map_err(|_| Error::ProgramNotFound(program.into()))
+    if let Ok(p) = which::which(program) {
+        return Ok(p);
+    }
+    // A GUI app keeps the PATH it was started with: a CLI installed afterwards (npm -g,
+    // pip/uv, cargo …) is invisible until re-login. Also look in the usual install dirs.
+    let extra = std::env::join_paths(extra_bin_dirs()).unwrap_or_default();
+    let cwd = std::env::current_dir().unwrap_or_default();
+    which::which_in(program, Some(extra), cwd).map_err(|_| Error::ProgramNotFound(program.into()))
+}
+
+/// Per-user install locations of agent CLIs that may be missing from the process PATH.
+pub fn extra_bin_dirs() -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
+    if let Some(a) = env("APPDATA") {
+        out.push(a.join("npm"));
+    }
+    if let Some(l) = env("LOCALAPPDATA") {
+        out.push(l.join("pnpm"));
+        out.push(l.join("Programs").join("Python").join("Scripts"));
+    }
+    if let Some(h) = env("USERPROFILE").or_else(|| env("HOME")) {
+        out.push(h.join(".local").join("bin"));
+        out.push(h.join(".cargo").join("bin"));
+        out.push(h.join(".bun").join("bin"));
+        out.push(h.join("scoop").join("shims"));
+        out.push(h.join(".npm-global").join("bin"));
+    }
+    out.retain(|d| d.is_dir());
+    out
 }
 
 /// Command that runs the CLI's own interactive login flow (opened in a console).

@@ -28,7 +28,7 @@ with sync_playwright() as p:
     pg.evaluate("window.__autoConfirm = false")  # exercise the real in-app dialog
 
     # ---- top bar (reference layout)
-    check(pg.get_by_role("button", name="Back to home").count() == 1, "top bar: Back to home")
+    check(pg.get_by_role("button", name="Back to home").count() == 0, "top bar: Back to home removed (v0.1.2)")
     check(pg.get_by_role("button", name="Settings").count() == 1, "single Settings entry (top bar)")
     check(pg.get_by_role("button", name="Fit all").count() == 0, "Fit all removed from rail")
     check(pg.get_by_role("button", name="Fit view").count() == 1, "Fit stays in zoom control")

@@ -24,6 +24,8 @@ import { InkCapture, InkStrokes } from "../ink/InkLayer";
 import { InkToolbar } from "../ink/InkToolbar";
 import { TileNodeView } from "../tiles/TileNodeView";
 import { RadialMenu } from "./RadialMenu";
+import { SelectionBar } from "./SelectionBar";
+import { SelectionMode } from "@xyflow/react";
 import type { Section, Tile } from "../../lib/types";
 import "./board.css";
 
@@ -193,6 +195,9 @@ function WorkspaceCanvas() {
         zoomActivationKeyCode="Control"
         deleteKeyCode={null}
         selectionOnDrag={false}
+        selectionKeyCode="Shift"
+        multiSelectionKeyCode={["Shift", "Control", "Meta"]}
+        selectionMode={SelectionMode.Partial}
         proOptions={{ hideAttribution: true }}
         colorMode="dark"
       >
@@ -216,6 +221,8 @@ function WorkspaceCanvas() {
         <InkToolbar />
         <ZoomControl />
       </ReactFlow>
+
+      <SelectionBar onGroup={() => window.dispatchEvent(new CustomEvent("board:group-selected"))} />
 
       <AnimatePresence>
         {radialMenu && (

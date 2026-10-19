@@ -161,29 +161,33 @@ function ProfileCard({
               }}
             />
           </div>
-          <div className="row">
-            <input
-              aria-label="Model"
-              className="input grow font-mono !text-[12px]"
-              placeholder="model"
-              defaultValue={p.kind.model}
-              onBlur={(e) => {
-                const k = p.kind;
-                if (k.type === "provider" && e.target.value.trim() !== k.model) onPatch({ kind: { ...k, model: e.target.value.trim() } });
-              }}
-            />
-            <input
-              aria-label="Fast model"
-              className="input grow font-mono !text-[12px]"
-              placeholder="fast model"
-              defaultValue={p.kind.smallModel}
-              onBlur={(e) => {
-                const k = p.kind;
-                if (k.type === "provider" && e.target.value.trim() !== k.smallModel)
-                  onPatch({ kind: { ...k, smallModel: e.target.value.trim() } });
-              }}
-            />
-          </div>
+          <details className="profile-advanced" data-testid="profile-advanced">
+            <summary className="cursor-pointer select-none text-[11.5px] font-semibold text-ink-3 hover:text-ink">Advanced: model ids</summary>
+            <p className="help !mt-1">Filled from the {preset?.name ?? "provider"} preset — change only for a different model. Typos like "GLM5.3" are fixed automatically.</p>
+  <div className="row">
+              <input
+                aria-label="Model"
+                className="input grow font-mono !text-[12px]"
+                placeholder="model"
+                defaultValue={p.kind.model}
+                onBlur={(e) => {
+                  const k = p.kind;
+                  if (k.type === "provider" && e.target.value.trim() !== k.model) onPatch({ kind: { ...k, model: e.target.value.trim() } });
+                }}
+              />
+              <input
+                aria-label="Fast model"
+                className="input grow font-mono !text-[12px]"
+                placeholder="fast model"
+                defaultValue={p.kind.smallModel}
+                onBlur={(e) => {
+                  const k = p.kind;
+                  if (k.type === "provider" && e.target.value.trim() !== k.smallModel)
+                    onPatch({ kind: { ...k, smallModel: e.target.value.trim() } });
+                }}
+              />
+            </div>
+          </details>
           <div className="row">
             <input
               aria-label="API key"

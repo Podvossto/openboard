@@ -108,9 +108,9 @@ function AgentCard({
   );
 }
 
-function CatalogItem({ item }: { item: CatalogStatus }) {
+function CatalogItem({ item, onInstall }: { item: CatalogStatus; onInstall: (item: CatalogStatus) => void }) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-line bg-surface-2/60 px-3 py-2">
+    <div className="flex items-center justify-between gap-2 rounded-xl border border-line bg-surface-2/60 px-3 py-2" data-catalog={item.id}>
       <div className="flex items-center gap-2.5">
         <span className="grid size-7 place-items-center rounded-lg bg-black/30 text-ink-2 font-mono text-[11px] font-bold">
           <CatalogIcon id={item.id} size={15} />
@@ -120,9 +120,21 @@ function CatalogItem({ item }: { item: CatalogStatus }) {
           <span className="font-mono text-[10.5px] text-ink-3">{item.program}</span>
         </div>
       </div>
-      <span className={`chip ${item.installed ? "ok" : "off"}`}>
-        {item.installed ? "Available" : "Not on PATH"}
-      </span>
+      <div className="flex shrink-0 items-center gap-2">
+        {item.installed ? (
+          <span className="chip ok">Installed</span>
+        ) : item.installProgram ? (
+          <button className="btn sm" title={item.install} aria-label={`Install ${item.name}`} onClick={() => onInstall(item)}>
+            Install
+          </button>
+        ) : item.installUrl ? (
+          <a className="btn sm" href={item.installUrl} target="_blank" rel="noreferrer" aria-label={`Install ${item.name} (opens docs)`}>
+            Install guide ↗
+          </a>
+        ) : (
+          <span className="chip off">Not installed</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -234,6 +246,21 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
       },
     ]);
     await ipc.spawn({ id, agent: a, cwd: "", cols: 100, rows: 30, resume: false, login: true, profile });
+    useBoard.getState().setRuntime(id, { running: true });
+    onClose();
+  };
+
+  /** Run the CLI's install command in a console; re-detect when it exits. */
+  const install = async (item: CatalogStatus) => {
+    if (!item.installProgram) return;
+    await flush();
+    const st = useBoard.getState();
+    const a: AgentKind = { kind: "custom", program: item.installProgram, args: item.installArgs };
+    const id = await ipc.newId();
+    st.addConsoles([
+      { id, title: `install ${item.name}`, agent: a, cwd: "", ...nextPosition(activeWorkspace(st.board).consoles), width: CONSOLE_W, height: CONSOLE_H },
+    ]);
+    await ipc.spawn({ id, agent: a, cwd: "", cols: 100, rows: 30, resume: false });
     useBoard.getState().setRuntime(id, { running: true });
     onClose();
   };
@@ -401,9 +428,10 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
               <div className="mt-5">
                 <h3 className="mb-2">Other Detected CLIs</h3>
+                <p className="help !mb-2">Install opens a console that runs the CLI's own install command (needs Node/npm or Python). Re-open Settings when it finishes.</p>
                 <div className="grid grid-cols-1 gap-1.5">
                   {(detected?.catalog ?? []).map((item) => (
-                    <CatalogItem key={item.id} item={item} />
+                    <CatalogItem key={item.id} item={item} onInstall={(it) => void install(it)} />
                   ))}
                 </div>
               </div>

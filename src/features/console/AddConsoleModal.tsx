@@ -5,7 +5,7 @@ import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
 import { ipc } from "../../lib/ipc";
 import { autoStart } from "../../lib/actions";
 import { activeWorkspace, CONSOLE_H, CONSOLE_W, nextPosition, useBoard } from "../../store/board";
-import type { AgentKind, CatalogStatus } from "../../lib/types";
+import type { AgentKind, CatalogStatus, ProviderPreset } from "../../lib/types";
 import { AgentIcon, CatalogIcon } from "../../components/AgentIcon";
 import { profilesFor } from "../settings/profiles";
 import { modelChoices } from "../../lib/models";
@@ -42,6 +42,13 @@ export function AddConsoleModal({ onClose, targetPos, targetGroup }: AddConsoleM
   const [model, setModel] = useState("");
 
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const [presets, setPresets] = useState<ProviderPreset[]>([]);
+  useEffect(() => {
+    ipc
+      .providerPresets()
+      .then(setPresets)
+      .catch(() => setPresets([]));
+  }, []);
 
   useEffect(() => {
     ipc
@@ -64,6 +71,12 @@ export function AddConsoleModal({ onClose, targetPos, targetGroup }: AddConsoleM
 
   const currentOption = cliOptions.find((c) => c.id === selectedCli) || cliOptions[0]!;
   const availableProfiles = profilesFor(currentOption.agent, allProfiles);
+  const profileObj = availableProfiles.find((p) => p.id === selectedProfile);
+  const models = modelChoices(currentOption.agent, profileObj, presets);
+  const pickProfile = (id: string) => {
+    setSelectedProfile(id);
+    setModel(""); // opus/sonnet/haiku mean nothing on a provider (and vice versa)
+  };
 
   const onSelectCli = (id: string) => {
     setSelectedCli(id);
@@ -205,11 +218,32 @@ export function AddConsoleModal({ onClose, targetPos, targetGroup }: AddConsoleM
               />
             </div>
 
-            {modelChoices(currentOption.agent).length > 0 && (
+            {/* Profile Selection (if any) */}
+            {availableProfiles.length > 0 && (
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-ink-3 mb-1.5">
+                  Account / Model Profile
+                </label>
+                <select
+                  className="h-9 w-full rounded-xl border border-line bg-bg/80 px-3 text-[12.5px] text-ink outline-none transition focus:border-accent cursor-pointer"
+                  value={selectedProfile}
+                  onChange={(e) => pickProfile(e.target.value)}
+                >
+                  <option value="">Default Profile</option>
+                  {availableProfiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {models.length > 0 && (
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-ink-3 mb-1.5">Model</label>
                 <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Model">
-                  {modelChoices(currentOption.agent).map((m) => (
+                  {models.map((m) => (
                     <button
                       key={m.id || "default"}
                       type="button"
@@ -224,27 +258,6 @@ export function AddConsoleModal({ onClose, targetPos, targetGroup }: AddConsoleM
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {/* Profile Selection (if any) */}
-            {availableProfiles.length > 0 && (
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-ink-3 mb-1.5">
-                  Account / Model Profile
-                </label>
-                <select
-                  className="h-9 w-full rounded-xl border border-line bg-bg/80 px-3 text-[12.5px] text-ink outline-none transition focus:border-accent cursor-pointer"
-                  value={selectedProfile}
-                  onChange={(e) => setSelectedProfile(e.target.value)}
-                >
-                  <option value="">Default Profile</option>
-                  {availableProfiles.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
               </div>
             )}
 

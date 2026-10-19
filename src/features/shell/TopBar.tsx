@@ -177,8 +177,6 @@ const shortName = (a: AccountUsage) =>
 export function TopBar() {
   const board = useBoard((s) => s.board);
   const runtime = useBoard((s) => s.runtime);
-  const resolvedCwd = useBoard((s) => s.resolvedCwd);
-  const defaultCwd = useBoard((s) => s.settings.defaultCwd);
   const showUsage = useBoard((s) => s.settings.showUsage);
   const { fitView } = useReactFlow();
   const ws = activeWorkspace(board);
@@ -188,12 +186,6 @@ export function TopBar() {
   const live = Object.values(runtime).filter((r) => r?.running).length;
   const needsIds = ids.filter((id) => runtime[id]?.running && runtime[id]?.status === "needsYou");
   const lastJump = useRef<string | null>(null);
-
-  const projectName = useMemo(() => {
-    const p = defaultCwd || resolvedCwd || "Agent Board";
-    const parts = p.replace(/\\/g, "/").split("/").filter(Boolean);
-    return parts.at(-1) || "Agent Board";
-  }, [defaultCwd, resolvedCwd]);
 
   const jumpNext = useCallback(() => {
     const target = nextInCycle(needsIds, lastJump.current ?? useBoard.getState().focused);
@@ -246,39 +238,6 @@ export function TopBar() {
 
   return (
     <header className="topbar relative z-30 flex h-14 shrink-0 items-center gap-3 border-b border-line/60 bg-bg px-4">
-      {/* Left section: Back to home + Project selector + Workspace Tabs */}
-      <div className="flex items-center gap-2">
-        <button
-          className="flex h-8 items-center gap-1.5 rounded-full border border-line bg-surface-2 px-3 text-[12px] font-medium text-ink-2 transition hover:bg-surface-3 hover:text-ink active:scale-95"
-          onClick={() => {
-            if (board.workspaces[0]) useBoard.getState().setActive(board.workspaces[0].id);
-            void fitView({ duration: 300 });
-          }}
-          title="Back to home"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-          <span className="hidden sm:inline">Back to home</span>
-        </button>
-
-        <button
-          className="flex h-8 items-center gap-1.5 rounded-full border border-line bg-surface-2 px-3 text-[12.5px] font-semibold text-ink transition hover:bg-surface-3 hover:border-line-strong active:scale-95"
-          title={`Project folder: ${defaultCwd || resolvedCwd || "Home"}`}
-          onClick={() => useBoard.getState().setUi({ settingsOpen: true })}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
-            <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
-          </svg>
-          <span className="max-w-[130px] truncate">{projectName}</span>
-          <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="text-ink-3">
-            <path d="M2 3.5l3 3 3-3" />
-          </svg>
-        </button>
-      </div>
-
-      <div className="mx-0.5 h-5 w-px bg-line/60" />
-
       {/* Tabs section */}
       <div className="ws-tabs flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none]" role="tablist" aria-label="Workspaces">
         {board.workspaces.map((w) => (

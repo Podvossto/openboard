@@ -285,6 +285,9 @@ export interface ProviderPreset {
   smallModel: string;
   keyHint: string;
   usage: boolean;
+  /** model ids for the New-console picker (first = default) */
+  models: string[];
+  contextWindow: number;
 }
 
 export interface KeyStatus {
@@ -312,6 +315,10 @@ export interface CatalogStatus {
   program: string;
   install: string;
   installed: boolean;
+  /** console launch for the install hint (null → open installUrl) */
+  installProgram: string | null;
+  installArgs: string[];
+  installUrl: string | null;
 }
 
 export interface Detected {

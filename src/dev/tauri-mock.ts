@@ -30,6 +30,8 @@ let board: unknown = {
 let settings = {
   defaultCwd: "", defaultAgent: { kind: "claudeCode" }, shell: "", claudeArgs: [], codexArgs: [],
   notifyNeedsYou: true, blinkNeedsYou: true, fontSize: 13, showUsage: true, autoResume: false,
+  // UI tests can seed profiles with an init script (window.__seedProfiles)
+  profiles: ((window as unknown as { __seedProfiles?: unknown[] }).__seedProfiles ?? []) as unknown[],
 };
 const running = new Set<string>(["c1", "c3"]);
 const log: { cmd: string; args: unknown }[] = [];
@@ -231,9 +233,11 @@ w.__TAURI_INTERNALS__ = {
           codex: { installed: true, loggedIn: false, detail: null },
           shell: "pwsh",
           catalog: [
-            { id: "gemini", name: "Gemini CLI", program: "gemini", install: "npm i -g @google/gemini-cli", installed: true },
-            { id: "opencode", name: "OpenCode", program: "opencode", install: "npm i -g opencode-ai", installed: true },
-            { id: "aider", name: "Aider", program: "aider", install: "pip install aider-install", installed: false },
+            { id: "gemini", name: "Gemini CLI", program: "gemini", install: "npm i -g @google/gemini-cli", installed: true, installProgram: "cmd", installArgs: ["/C", "npm i -g @google/gemini-cli"], installUrl: null },
+            { id: "opencode", name: "OpenCode", program: "opencode", install: "npm i -g opencode-ai", installed: true, installProgram: "cmd", installArgs: ["/C", "npm i -g opencode-ai"], installUrl: null },
+            { id: "aider", name: "Aider", program: "aider", install: "pip install aider-install", installed: false, installProgram: "cmd", installArgs: ["/C", "pip install aider-install && aider-install"], installUrl: null },
+            { id: "qwen", name: "Qwen Code", program: "qwen", install: "npm i -g @qwen-code/qwen-code", installed: (window as unknown as { __qwenInstalled?: boolean }).__qwenInstalled ?? false, installProgram: "cmd", installArgs: ["/C", "npm i -g @qwen-code/qwen-code"], installUrl: null },
+            { id: "cursor", name: "Cursor CLI", program: "cursor-agent", install: "see cursor.com/cli", installed: false, installProgram: null, installArgs: [], installUrl: "https://cursor.com/cli" },
           ],
         };
       case "sync_roster":
@@ -247,8 +251,8 @@ w.__TAURI_INTERNALS__ = {
         ];
       case "provider_presets":
         return [
-          { id: "zai", name: "Z.ai (GLM Coding Plan)", baseUrl: "https://api.z.ai/api/anthropic", model: "glm-4.6", smallModel: "glm-4.5-air", keyHint: "z.ai → API Keys", usage: true },
-          { id: "kimi", name: "Moonshot Kimi", baseUrl: "https://api.moonshot.ai/anthropic", model: "kimi-k2-turbo-preview", smallModel: "kimi-k2-turbo-preview", keyHint: "", usage: false },
+          { id: "zai", name: "Z.ai (GLM Coding Plan)", baseUrl: "https://api.z.ai/api/anthropic", model: "glm-5.3[1m]", smallModel: "glm-5.3-flash[1m]", keyHint: "z.ai → API Keys", usage: true, models: ["glm-5.3[1m]", "glm-5.3-flash[1m]"], contextWindow: 1000000 },
+          { id: "kimi", name: "Moonshot Kimi", baseUrl: "https://api.moonshot.ai/anthropic", model: "kimi-k2-turbo-preview", smallModel: "kimi-k2-turbo-preview", keyHint: "", usage: false, models: ["kimi-k2-turbo-preview"], contextWindow: 0 },
         ];
       case "profile_key_status": {
         const ks = (window as unknown as { __keys?: Record<string, string> }).__keys ?? {};

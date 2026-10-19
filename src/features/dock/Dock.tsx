@@ -179,8 +179,14 @@ export function Dock() {
         useBoard.getState().setUi({ memoryOpen: true });
       }
     };
+    // the board's selection bar asks the dock to group (it owns the layout planning)
+    const onGroupEvt = () => void groupSelected();
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("board:group-selected", onGroupEvt);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("board:group-selected", onGroupEvt);
+    };
   }, [newConsole, groupSelected]);
 
   const toggle = (m: Exclude<MenuName, null>) => setMenu((cur) => (cur === m ? null : m));

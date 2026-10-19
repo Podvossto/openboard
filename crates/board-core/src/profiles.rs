@@ -67,6 +67,11 @@ pub struct ProviderPreset {
     pub key_hint: &'static str,
     /// Supports the plan-usage endpoint we know how to read.
     pub usage: bool,
+    /// Model ids offered in the New-console picker (first = default). Empty → free text only.
+    pub models: &'static [&'static str],
+    /// Context window of the models (tokens) → `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, so
+    /// Claude Code does not assume 200k for a model it does not know. 0 = leave unset.
+    pub context_window: u64,
 }
 
 pub const PRESETS: &[ProviderPreset] = &[
@@ -74,19 +79,24 @@ pub const PRESETS: &[ProviderPreset] = &[
         id: "zai",
         name: "Z.ai (GLM Coding Plan)",
         base_url: "https://api.z.ai/api/anthropic",
-        model: "glm-4.6",
-        small_model: "glm-4.5-air",
+        // per docs.z.ai/devpack/tool/claude (2026-10): lower-case id + [1m] context suffix
+        model: "glm-5.3[1m]",
+        small_model: "glm-5.3-flash[1m]",
         key_hint: "z.ai → API Keys",
         usage: true,
+        models: &["glm-5.3[1m]", "glm-5.3-flash[1m]"],
+        context_window: 1_000_000,
     },
     ProviderPreset {
         id: "zai-cn",
         name: "Zhipu BigModel (China)",
         base_url: "https://open.bigmodel.cn/api/anthropic",
-        model: "glm-4.6",
-        small_model: "glm-4.5-air",
+        model: "glm-5.3[1m]",
+        small_model: "glm-5.3-flash[1m]",
         key_hint: "bigmodel.cn → API Keys",
         usage: false,
+        models: &["glm-5.3[1m]", "glm-5.3-flash[1m]"],
+        context_window: 1_000_000,
     },
     ProviderPreset {
         id: "kimi",
@@ -96,6 +106,8 @@ pub const PRESETS: &[ProviderPreset] = &[
         small_model: "kimi-k2-turbo-preview",
         key_hint: "platform.moonshot.ai → API Keys",
         usage: false,
+        models: &["kimi-k2-turbo-preview"],
+        context_window: 0,
     },
     ProviderPreset {
         id: "deepseek",
@@ -105,6 +117,8 @@ pub const PRESETS: &[ProviderPreset] = &[
         small_model: "deepseek-chat",
         key_hint: "platform.deepseek.com → API Keys",
         usage: false,
+        models: &["deepseek-chat"],
+        context_window: 0,
     },
     ProviderPreset {
         id: "minimax",
@@ -114,6 +128,8 @@ pub const PRESETS: &[ProviderPreset] = &[
         small_model: "MiniMax-M2",
         key_hint: "platform.minimax.io → API Keys",
         usage: false,
+        models: &["MiniMax-M2"],
+        context_window: 0,
     },
     ProviderPreset {
         id: "openrouter",
@@ -123,11 +139,34 @@ pub const PRESETS: &[ProviderPreset] = &[
         small_model: "",
         key_hint: "openrouter.ai → Keys",
         usage: false,
+        models: &[],
+        context_window: 0,
     },
 ];
 
 pub fn preset(id: &str) -> Option<&'static ProviderPreset> {
     PRESETS.iter().find(|p| p.id == id)
+}
+
+/// Tidy a hand-typed model id for providers with known naming. For Z.ai / BigModel:
+/// "GLM5.3" / "glm 5.3" → "glm-5.3[1m]" (lower-case, dash after `glm`, default 1M context
+/// suffix). Other providers' ids are only trimmed — we do not know their rules.
+pub fn normalize_model(provider: &str, model: &str) -> String {
+    let m = model.trim();
+    if m.is_empty() || !matches!(provider, "zai" | "zai-cn") {
+        return m.to_string();
+    }
+    let mut out = m.to_ascii_lowercase().replace([' ', '_'], "-");
+    if let Some(rest) = out.strip_prefix("glm") {
+        if !rest.starts_with('-') {
+            out = format!("glm-{rest}");
+        }
+    }
+    let is_glm5 = out.starts_with("glm-5");
+    if is_glm5 && !out.contains('[') {
+        out.push_str("[1m]");
+    }
+    out
 }
 
 /// Config dir that isolates a subscription profile's login + sessions.
@@ -173,13 +212,16 @@ pub fn env_for(profile: &Profile, data_dir: &Path, key: Option<&str>) -> Vec<(St
         }
         (
             ProfileKind::Provider {
+                provider,
                 base_url,
                 model,
                 small_model,
-                ..
             },
             _,
         ) => {
+            let model = normalize_model(provider, model);
+            let small_model = normalize_model(provider, small_model);
+            let (model, small_model) = (&model, &small_model);
             // own config dir too: provider sessions must not mix with the user's Claude login
             env.push((
                 "CLAUDE_CONFIG_DIR".into(),
@@ -199,6 +241,12 @@ pub fn env_for(profile: &Profile, data_dir: &Path, key: Option<&str>) -> Vec<(St
                 env.push(("ANTHROPIC_DEFAULT_HAIKU_MODEL".into(), small_model.clone()));
             }
             env.push(("API_TIMEOUT_MS".into(), "3000000".into()));
+            if let Some(cw) = preset(provider)
+                .map(|p| p.context_window)
+                .filter(|c| *c > 0)
+            {
+                env.push(("CLAUDE_CODE_AUTO_COMPACT_WINDOW".into(), cw.to_string()));
+            }
             env.push((
                 "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC".into(),
                 "1".into(),
@@ -333,10 +381,18 @@ mod tests {
             Some("https://api.z.ai/api/anthropic")
         );
         assert_eq!(get(&env, "ANTHROPIC_AUTH_TOKEN"), Some("sk-123"));
-        assert_eq!(get(&env, "ANTHROPIC_MODEL"), Some("glm-4.6"));
+        assert_eq!(get(&env, "ANTHROPIC_MODEL"), Some("glm-5.3[1m]"));
+        assert_eq!(
+            get(&env, "ANTHROPIC_DEFAULT_OPUS_MODEL"),
+            Some("glm-5.3[1m]")
+        );
         assert_eq!(
             get(&env, "ANTHROPIC_DEFAULT_HAIKU_MODEL"),
-            Some("glm-4.5-air")
+            Some("glm-5.3-flash[1m]")
+        );
+        assert_eq!(
+            get(&env, "CLAUDE_CODE_AUTO_COMPACT_WINDOW"),
+            Some("1000000")
         );
         assert!(get(&env, "CLAUDE_CONFIG_DIR").unwrap().ends_with("p1"));
         assert!(get(
@@ -386,5 +442,38 @@ mod tests {
         assert_eq!(m.get("p").as_deref(), Some("k"));
         m.delete("p").unwrap();
         assert!(m.get("p").is_none());
+    }
+
+    #[test]
+    fn normalizes_hand_typed_glm_ids() {
+        assert_eq!(normalize_model("zai", "GLM5.3"), "glm-5.3[1m]");
+        assert_eq!(
+            normalize_model("zai", " glm 5.3-flash "),
+            "glm-5.3-flash[1m]"
+        );
+        assert_eq!(normalize_model("zai", "glm-5.3[1m]"), "glm-5.3[1m]");
+        assert_eq!(normalize_model("zai", "glm-4.6"), "glm-4.6");
+        assert_eq!(normalize_model("zai", ""), "");
+        assert_eq!(normalize_model("kimi", " Kimi-K2 "), "Kimi-K2");
+        // a hand-typed "GLM5.3" profile now launches with the right id
+        let mut p = zai();
+        if let ProfileKind::Provider { model, .. } = &mut p.kind {
+            *model = "GLM5.3".into();
+        }
+        let env = env_for(&p, Path::new("/d"), None);
+        assert_eq!(get(&env, "ANTHROPIC_MODEL"), Some("glm-5.3[1m]"));
+    }
+
+    #[test]
+    fn context_window_only_for_known_presets() {
+        let mut p = zai();
+        if let ProfileKind::Provider { provider, .. } = &mut p.kind {
+            *provider = "kimi".into();
+        }
+        let env = env_for(&p, Path::new("/d"), None);
+        assert!(get(&env, "CLAUDE_CODE_AUTO_COMPACT_WINDOW").is_none());
+        assert!(PRESETS
+            .iter()
+            .all(|p| p.models.is_empty() || p.models[0] == p.model));
     }
 }

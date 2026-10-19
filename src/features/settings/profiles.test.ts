@@ -16,7 +16,7 @@ describe("profiles", () => {
   });
   it("maps a preset to a provider kind", () => {
     expect(
-      presetToKind({ id: "zai", name: "Z", baseUrl: "https://api.z.ai/api/anthropic", model: "glm-4.6", smallModel: "glm-4.5-air", keyHint: "", usage: true }),
+      presetToKind({ id: "zai", name: "Z", baseUrl: "https://api.z.ai/api/anthropic", model: "glm-4.6", smallModel: "glm-4.5-air", keyHint: "", usage: true, models: [], contextWindow: 0 }),
     ).toEqual({ type: "provider", provider: "zai", baseUrl: "https://api.z.ai/api/anthropic", model: "glm-4.6", smallModel: "glm-4.5-air" });
   });
 });

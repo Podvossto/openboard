@@ -69,8 +69,15 @@ export const PROGRAM_TO_CATALOG: Record<string, string> = {
   amp: "amp", goose: "goose", crush: "crush", grok: "grok", kimi: "kimi", droid: "droid",
 };
 
-/** Letter tile (original, not vendor logos) tinted per agent. */
+// Vendor logos from devicons.io (MIT; each logo is its owner's trademark). Missing ids
+// (aider, crush, droid — not on devicons) fall back to the tinted letter tile.
+const LOGOS = import.meta.glob<string>("../assets/agent-logos/*.svg", { eager: true, query: "?url", import: "default" });
+export const logoUrl = (id: string): string | undefined => LOGOS[`../assets/agent-logos/${id}.svg`];
+
+/** Vendor logo when we have one, else a letter tile tinted per agent. */
 export function CatalogIcon({ id, size = 15 }: { id: string; size?: number }) {
+  const src = logoUrl(id);
+  if (src) return <img src={src} width={size} height={size} alt="" aria-hidden="true" className="shrink-0 object-contain" data-logo={id} draggable={false} />;
   const tint = CAT_TINT[id] ?? "#a9aab6";
   return (
     <span
