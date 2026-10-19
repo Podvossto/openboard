@@ -124,6 +124,7 @@ pub fn run() {
             commands::list_mcp,
             commands::add_mcp,
             commands::remove_mcp,
+            commands::usage_for_sessions,
             commands::sync_roster,
             updater::app_version,
             updater::update_check,

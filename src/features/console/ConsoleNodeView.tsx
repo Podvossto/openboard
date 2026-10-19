@@ -13,6 +13,8 @@ import { TerminalView } from "./TerminalView";
 import { ConsoleMenu } from "./ConsoleMenu";
 import { useNeedsYouAlert } from "./useNeedsYouAlert";
 import { shortPath } from "./helpers";
+import { useConsoleUsage } from "../usage/sessionUsage";
+import { humanTokens } from "../usage/calc";
 import "./console.css";
 
 export const ConsoleNodeView = memo(function ConsoleNodeView({ data, selected, dragging: dragging_ }: NodeProps<ConsoleFlowNode>) {
@@ -50,6 +52,7 @@ export const ConsoleNodeView = memo(function ConsoleNodeView({ data, selected, d
   const tint =
     c.agent.kind === "claudeCode" ? "var(--color-claude)" : c.agent.kind === "codex" ? "var(--color-codex)" : "var(--color-ink-3)";
 
+  const used = useConsoleUsage(c.agentSession, c.agent.kind);
   const leaving = useBoard((s) => !!s.leaving[c.id]);
   const dragging = !!dragging_;
 
@@ -108,6 +111,18 @@ export const ConsoleNodeView = memo(function ConsoleNodeView({ data, selected, d
             <Badge key="lead" className="border-warn/45 bg-warn/10 text-warn" title="Orchestrator lead — can list, message, read and spawn other consoles">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 18h18l-2-10-4.5 4L12 5l-2.5 7L5 8z" /></svg>
               Lead
+            </Badge>
+          )}
+          {used && used.tokens > 0 && (
+            <Badge
+              key="tok"
+              className="console-tokens border-line bg-surface-2 !normal-case !tracking-normal font-mono text-ink-2"
+              title={`${used.tokens.toLocaleString()} tokens this session · ${used.messages} messages — click for usage`}
+              aria-label={`${humanTokens(used.tokens)} tokens`}
+              onClick={() => useBoard.getState().setUi({ usageModal: { consoleId: c.id } })}
+              style={{ cursor: "pointer" }}
+            >
+              {humanTokens(used.tokens)} tok
             </Badge>
           )}
           {profile && (

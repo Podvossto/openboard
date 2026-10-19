@@ -712,6 +712,23 @@ pub async fn usage_analytics(
     .map_err(|e| Error::Pty(e.to_string()))
 }
 
+/// Token usage per Claude session id (per-console usage chips). Unknown ids are omitted.
+#[tauri::command]
+pub async fn usage_for_sessions(
+    state: State<'_, AppState>,
+    session_ids: Vec<String>,
+) -> Result<std::collections::HashMap<String, board_core::analytics::SessionUsage>> {
+    let profiles = state.settings.lock().profiles.clone();
+    let data_dir = state.data_dir.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let home = home_dir().unwrap_or_default();
+        let sources = board_core::analytics::default_sources(&home, &data_dir, &profiles);
+        board_core::analytics::session_usage(&sources, &session_ids)
+    })
+    .await
+    .map_err(|e| Error::Pty(e.to_string()))
+}
+
 // ---------- orchestrator ----------
 
 /// The UI pushes the current consoles (all workspaces) so lead agents can address them.

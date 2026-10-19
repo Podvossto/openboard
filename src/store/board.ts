@@ -74,6 +74,8 @@ interface BoardState {
     settingsOpen: boolean;
     memoryOpen: boolean;
     usageAnalyticsOpen: boolean;
+    /** Usage modal: null = closed; consoleId focuses one console's own usage */
+    usageModal: { consoleId?: string } | null;
     ink: InkTool | null;
     codeOpen: boolean;
     /** Skills & MCP panel: which tab it is open on (null = closed) */
@@ -166,7 +168,7 @@ export const useBoard = create<BoardState>((set) => ({
   runtime: {},
   revision: 0,
   focused: null,
-  ui: { settingsOpen: false, memoryOpen: false, usageAnalyticsOpen: false, ink: null, codeOpen: false, extensionsOpen: null, codeTarget: null, addConsole: null },
+  ui: { settingsOpen: false, memoryOpen: false, usageAnalyticsOpen: false, usageModal: null, ink: null, codeOpen: false, extensionsOpen: null, codeTarget: null, addConsole: null },
 
   hydrate: (board) => set({ board, loaded: true }),
   setSettings: (settings, resolvedCwd) => set({ settings, resolvedCwd }),

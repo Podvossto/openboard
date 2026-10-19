@@ -10,6 +10,7 @@ import type {
   Skill,
   AccountUsage,
   UpdateInfo,
+  SessionUsage,
   AgentKind,
   Analytics,
   KeyStatus,
@@ -102,6 +103,9 @@ export const ipc = {
     invoke<string>("add_mcp", { cli, profile, cwd, server }),
   removeMcp: (cli: ExtCli, profile: string | null, cwd: string | null, name: string, scope: ExtScope) =>
     invoke<string>("remove_mcp", { cli, profile, cwd, name, scope }),
+  /** tokens per Claude session id (ids with no log are absent) */
+  usageForSessions: (sessionIds: string[]) =>
+    invoke<Record<string, SessionUsage>>("usage_for_sessions", { sessionIds }),
   gitStatus: (cwd: string) => invoke<GitStatus>("git_status", { cwd }),
   gitRun: (cwd: string, action: GitAction, message = "") => invoke<string>("git_run", { cwd, action, message }),
   fsList: (root: string, rel: string) => invoke<FsEntry[]>("fs_list", { root, rel }),

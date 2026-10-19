@@ -327,9 +327,23 @@ export interface UsageWindow {
   resetsAt: string | null;
 }
 
+export interface UsageModelWindow {
+  model: string;
+  percent: number;
+  resetsAt: string | null;
+}
+
+export interface SessionUsage {
+  tokens: number;
+  messages: number;
+  model: string | null;
+}
+
 export interface Usage {
   session: UsageWindow | null;
   weekly: UsageWindow | null;
+  /** per-model weekly limits (Anthropic opus/sonnet); empty when not reported */
+  weeklyModels?: UsageModelWindow[];
   error: string | null;
 }
 
@@ -362,6 +376,10 @@ export interface Analytics {
   streaks: AnalyticsStreaks;
   peakDay: { date: string; tokens: number } | null;
   topAgent: { agent: string; tokens: number } | null;
+  /** Claude model id → tokens */
+  models: Record<string, number>;
+  /** longest single session, seconds (0 = unknown) */
+  longestSessionSecs: number;
 }
 
 export interface HookLogEntry {
@@ -395,6 +413,8 @@ export interface UpdateInfo {
   currentVersion: string;
   notes: string | null;
   date: string | null;
+}
+
 // ---------- Skills & MCP (board-core::extensions) ----------
 export type ExtCli = "claude" | "codex";
 export type ExtScope = "user" | "project";

@@ -229,6 +229,9 @@ export function ConsoleMenu({ c, onRename, onClose }: Props) {
           <button className="menu-item" role="menuitem" onClick={run(copyTranscript)}>
             Copy transcript
           </button>
+          <button className="menu-item" role="menuitem" onClick={run(() => useBoard.getState().setUi({ usageModal: { consoleId: c.id } }))}>
+            Usage
+          </button>
           <button
             className="menu-item"
             role="menuitem"

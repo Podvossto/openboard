@@ -12,6 +12,8 @@ import { ExtensionsPanel } from "../features/extensions/ExtensionsPanel";
 import { SettingsPanel } from "../features/settings/SettingsPanel";
 import { MemoryPanel } from "../features/dock/MemoryPanel";
 import { UsageAnalytics } from "../features/usage/UsageAnalytics";
+import { useSessionUsagePoller } from "../features/usage/sessionUsage";
+import { UsageModal } from "../features/usage/UsageModal";
 const CodePanel = lazy(() => import("../features/code/CodePanel").then((m) => ({ default: m.CodePanel })));
 import { useBoardRuntime } from "../features/console/useBoardRuntime";
 import { useAutosave } from "../features/board/useAutosave";
@@ -62,6 +64,7 @@ export function App() {
   useAutosave();
   useLoops();
   useUpdaterBoot();
+  useSessionUsagePoller();
   useOrchestrator();
 
   if (!loaded) return <div className="splash">Agent Board</div>;
@@ -91,6 +94,7 @@ export function App() {
           {ui.codeOpen && <CodePanel key="code" onClose={() => useBoard.getState().setUi({ codeOpen: false, codeTarget: null })} />}
           {ui.extensionsOpen && <ExtensionsPanel key="extensions" tab={ui.extensionsOpen} onClose={() => useBoard.getState().setUi({ extensionsOpen: null })} />}
           {ui.memoryOpen && <MemoryPanel key="memory" onClose={() => useBoard.getState().setUi({ memoryOpen: false })} />}
+          {ui.usageModal && <UsageModal key="usage-modal" consoleId={ui.usageModal.consoleId} onClose={() => useBoard.getState().setUi({ usageModal: null })} />}
           {ui.usageAnalyticsOpen && <UsageAnalytics key="usage-analytics" onClose={() => useBoard.getState().setUi({ usageAnalyticsOpen: false })} />}
         </AnimatePresence>
         </Suspense>
