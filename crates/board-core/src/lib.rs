@@ -8,6 +8,7 @@ pub mod analytics;
 pub mod ansi;
 pub mod catalog;
 pub mod error;
+pub mod extensions;
 pub mod files;
 pub mod git;
 pub mod hooks;

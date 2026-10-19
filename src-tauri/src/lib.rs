@@ -108,6 +108,12 @@ pub fn run() {
             commands::delete_profile_key,
             commands::usage_all,
             commands::usage_analytics,
+            commands::list_skills,
+            commands::create_skill,
+            commands::delete_skill,
+            commands::list_mcp,
+            commands::add_mcp,
+            commands::remove_mcp,
             commands::sync_roster,
         ])
         .build(tauri::generate_context!())

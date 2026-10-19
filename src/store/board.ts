@@ -74,6 +74,8 @@ interface BoardState {
     usageAnalyticsOpen: boolean;
     ink: InkTool | null;
     codeOpen: boolean;
+    /** Skills & MCP panel: which tab it is open on (null = closed) */
+    extensionsOpen: "skills" | "mcp" | null;
     /** file to open when the Code studio opens (pinned tile double-click) */
     codeTarget: { root: string; path: string } | null;
     /** New-console dialog (Task 7): open with optional flow position / target group */
@@ -149,7 +151,7 @@ export const useBoard = create<BoardState>((set) => ({
   runtime: {},
   revision: 0,
   focused: null,
-  ui: { settingsOpen: false, memoryOpen: false, usageAnalyticsOpen: false, ink: null, codeOpen: false, codeTarget: null, addConsole: null },
+  ui: { settingsOpen: false, memoryOpen: false, usageAnalyticsOpen: false, ink: null, codeOpen: false, extensionsOpen: null, codeTarget: null, addConsole: null },
 
   hydrate: (board) => set({ board, loaded: true }),
   setSettings: (settings, resolvedCwd) => set({ settings, resolvedCwd }),

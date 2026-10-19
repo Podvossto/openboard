@@ -719,3 +719,217 @@ pub async fn usage_analytics(
 pub fn sync_roster(state: State<'_, AppState>, roster: Vec<crate::orchestrator::RosterEntry>) {
     *state.tools.roster.lock() = roster;
 }
+
+// ---------- skills & MCP (the CLIs own their config) ----------
+
+use board_core::extensions::{self, AddMcp, CliHome, McpServer, Scope, Skill};
+
+fn ext_home(state: &AppState, cli: profiles::Cli, profile: Option<&str>) -> Result<CliHome> {
+    let home = home_dir().unwrap_or_default();
+    let custom = match profile.filter(|p| !p.is_empty()) {
+        Some(pid) => {
+            let p = state
+                .settings
+                .lock()
+                .profiles
+                .iter()
+                .find(|p| p.id == pid)
+                .cloned()
+                .ok_or_else(|| Error::Pty(format!("profile {pid} no longer exists")))?;
+            if p.cli != cli {
+                return Err(Error::Pty(format!(
+                    "profile \"{}\" is not for this CLI",
+                    p.name
+                )));
+            }
+            Some(profiles::config_dir(&state.data_dir, &p))
+        }
+        None => std::env::var_os(match cli {
+            profiles::Cli::Claude => "CLAUDE_CONFIG_DIR",
+            profiles::Cli::Codex => "CODEX_HOME",
+        })
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from),
+    };
+    Ok(CliHome::resolve(cli, custom, &home))
+}
+
+fn project_dir(cwd: &Option<String>) -> Option<PathBuf> {
+    cwd.as_deref()
+        .map(str::trim)
+        .filter(|c| !c.is_empty())
+        .map(PathBuf::from)
+        .filter(|p| p.is_dir())
+}
+
+#[tauri::command]
+pub fn list_skills(
+    state: State<'_, AppState>,
+    cli: profiles::Cli,
+    profile: Option<String>,
+    cwd: Option<String>,
+) -> Result<Vec<Skill>> {
+    let h = ext_home(&state, cli, profile.as_deref())?;
+    Ok(extensions::list_skills(&h, project_dir(&cwd).as_deref()))
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub fn create_skill(
+    state: State<'_, AppState>,
+    cli: profiles::Cli,
+    profile: Option<String>,
+    cwd: Option<String>,
+    scope: Scope,
+    name: String,
+    description: String,
+    body: String,
+) -> Result<Skill> {
+    let h = ext_home(&state, cli, profile.as_deref())?;
+    extensions::create_skill(
+        &h,
+        scope,
+        project_dir(&cwd).as_deref(),
+        &name,
+        &description,
+        &body,
+    )
+}
+
+#[tauri::command]
+pub fn delete_skill(
+    state: State<'_, AppState>,
+    cli: profiles::Cli,
+    profile: Option<String>,
+    cwd: Option<String>,
+    scope: Scope,
+    name: String,
+) -> Result<()> {
+    let h = ext_home(&state, cli, profile.as_deref())?;
+    extensions::delete_skill(&h, scope, project_dir(&cwd).as_deref(), &name)
+}
+
+#[tauri::command]
+pub fn list_mcp(
+    state: State<'_, AppState>,
+    cli: profiles::Cli,
+    profile: Option<String>,
+    cwd: Option<String>,
+) -> Result<Vec<McpServer>> {
+    let h = ext_home(&state, cli, profile.as_deref())?;
+    Ok(extensions::list_mcp(&h, project_dir(&cwd).as_deref()))
+}
+
+fn drain<R: std::io::Read + Send + 'static>(r: Option<R>) -> std::thread::JoinHandle<String> {
+    std::thread::spawn(move || {
+        let mut b = Vec::new();
+        if let Some(mut r) = r {
+            let _ = r.read_to_end(&mut b);
+        }
+        String::from_utf8_lossy(&b).into_owned()
+    })
+}
+
+/// Run `<cli> <args>` (30 s cap) in `dir` with the account's config dir; Err carries stderr.
+fn run_cli(
+    cli: profiles::Cli,
+    home: &CliHome,
+    dir: Option<PathBuf>,
+    args: Vec<String>,
+) -> Result<String> {
+    let (program, args) = resolve_spec(LaunchSpec {
+        program: match cli {
+            profiles::Cli::Claude => "claude",
+            profiles::Cli::Codex => "codex",
+        }
+        .into(),
+        args,
+    })?;
+    let mut cmd = Command::new(program);
+    cmd.args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    if let Some(d) = dir {
+        cmd.current_dir(d);
+    }
+    cmd.env(
+        match cli {
+            profiles::Cli::Claude => "CLAUDE_CONFIG_DIR",
+            profiles::Cli::Codex => "CODEX_HOME",
+        },
+        &home.dir,
+    );
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    let mut child = cmd.spawn()?;
+    let out = drain(child.stdout.take());
+    let err = drain(child.stderr.take());
+    let started = std::time::Instant::now();
+    let status = loop {
+        if let Some(st) = child.try_wait()? {
+            break st;
+        }
+        if started.elapsed() > std::time::Duration::from_secs(30) {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(Error::Pty("CLI timed out after 30 s".into()));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    let (out, err) = (
+        out.join().unwrap_or_default(),
+        err.join().unwrap_or_default(),
+    );
+    if status.success() {
+        Ok(out.trim().to_string())
+    } else {
+        let msg = if err.trim().is_empty() { out } else { err };
+        Err(Error::Pty(msg.trim().to_string()))
+    }
+}
+
+/// Project-scoped changes run inside the project folder (the CLI writes `.mcp.json` there).
+fn mcp_dir(scope: Scope, cwd: &Option<String>) -> Result<Option<PathBuf>> {
+    let d = project_dir(cwd);
+    if scope == Scope::Project && d.is_none() {
+        return Err(Error::Pty("project scope needs a working folder".into()));
+    }
+    Ok(d)
+}
+
+#[tauri::command]
+pub async fn add_mcp(
+    state: State<'_, AppState>,
+    cli: profiles::Cli,
+    profile: Option<String>,
+    cwd: Option<String>,
+    server: AddMcp,
+) -> Result<String> {
+    let h = ext_home(&state, cli, profile.as_deref())?;
+    let argv = extensions::add_mcp_argv(cli, &server)?;
+    let dir = mcp_dir(server.scope, &cwd)?;
+    tauri::async_runtime::spawn_blocking(move || run_cli(cli, &h, dir, argv))
+        .await
+        .map_err(|e| Error::Pty(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn remove_mcp(
+    state: State<'_, AppState>,
+    cli: profiles::Cli,
+    profile: Option<String>,
+    cwd: Option<String>,
+    name: String,
+    scope: Scope,
+) -> Result<String> {
+    let h = ext_home(&state, cli, profile.as_deref())?;
+    let argv = extensions::remove_mcp_argv(cli, &name, scope)?;
+    let dir = mcp_dir(scope, &cwd)?;
+    tauri::async_runtime::spawn_blocking(move || run_cli(cli, &h, dir, argv))
+        .await
+        .map_err(|e| Error::Pty(e.to_string()))?
+}
