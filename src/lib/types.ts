@@ -34,6 +34,8 @@ export interface ConsoleNode {
   model?: string;
   /** tile ids linked to this console (agent ↔ tile tools) */
   links?: string[];
+  /** agent preset this console was created from */
+  preset?: string;
 }
 
 export type LoopTrigger =
@@ -87,7 +89,7 @@ export interface Viewport {
   zoom: number;
 }
 
-export type TileKind = "note" | "checklist" | "kanban" | "web" | "git" | "code" | "calendar";
+export type TileKind = "note" | "checklist" | "kanban" | "web" | "git" | "code" | "calendar" | "image";
 
 export interface ChecklistItem {
   id: string;
@@ -97,6 +99,14 @@ export interface ChecklistItem {
 export interface KanbanCard {
   id: string;
   text: string;
+  /** longer details (markdown-ish plain text) */
+  desc?: string;
+  /** epoch ms */
+  createdAt?: number;
+  /** "you" or the agent console's title */
+  createdBy?: string;
+  updatedAt?: number;
+  updatedBy?: string;
 }
 export interface KanbanColumn {
   id: string;
@@ -119,6 +129,8 @@ export interface TileData {
   note: { text: string; color?: string };
   checklist: { items: ChecklistItem[] };
   kanban: { columns: KanbanColumn[] };
+  /** dropped picture: data URL (downscaled to ≤ 1600 px) + original name */
+  image: { src: string; name?: string; w?: number; h?: number };
   web: {
     url: string;
     /** device preset id from logic.ts DEVICES ("responsive" = fill the tile) */
@@ -158,6 +170,8 @@ export interface Workspace {
   /** may be missing in boards saved before sections existed */
   sections?: Section[];
   memory: string;
+  /** give `memory` to every Claude console started here (system prompt) */
+  memoryAuto?: boolean;
   /** may be missing in boards saved before tiles existed */
   tiles?: Tile[];
   /** freehand strokes, board coordinates */
@@ -264,6 +278,30 @@ export interface Settings {
   /** on app start, relaunch every stopped console with a resumable session */
   autoResume: boolean;
   profiles: Profile[];
+  /** user-made agent presets (sidebar shortcuts) */
+  agentPresets?: AgentPreset[];
+}
+
+export interface PresetMcp {
+  name: string;
+  /** stdio command line or http(s) URL */
+  target: string;
+}
+
+/** Saved agent recipe — one click on the sidebar creates a console from it. */
+export interface AgentPreset {
+  id: string;
+  name: string;
+  /** "devicon:<catalog id|claudeCode|codex>" | "emoji:<char>" | "data:image/…" */
+  icon: string;
+  color: string;
+  agent?: AgentKind | null;
+  profile?: string | null;
+  model?: string | null;
+  role: string;
+  skills: string[];
+  mcp: PresetMcp[];
+  lead: boolean;
 }
 
 export type ProfileKind =

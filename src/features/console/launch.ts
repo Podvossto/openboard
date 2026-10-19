@@ -3,6 +3,8 @@
 import { ipc } from "../../lib/ipc";
 import { activeWorkspace, useBoard } from "../../store/board";
 
+import { extraPrompt } from "../presets/presets";
+import type { ConsoleNode, PresetMcp } from "../../lib/types";
 import { canResume } from "./helpers";
 
 /** (kind, title) of the agent-linkable tiles this console is linked to (passed to spawn). */
@@ -12,6 +14,15 @@ function linkedTiles(node: { links?: string[] }): [string, string][] {
     .map((id) => tiles.find((t) => t.id === id))
     .filter((t): t is NonNullable<typeof t> => !!t && ["kanban", "checklist", "calendar"].includes(t.kind))
     .map((t) => [t.kind, t.title]);
+}
+
+/** Preset role/skills + auto-shared memory (system prompt) and the preset's MCP servers. */
+function launchExtras(node: ConsoleNode): { extraPrompt: string; extraMcp: PresetMcp[] } {
+  const st = useBoard.getState();
+  const presets = st.settings.agentPresets ?? [];
+  const ws = st.board.workspaces.find((w) => w.consoles.some((c) => c.id === node.id)) ?? activeWorkspace(st.board);
+  const p = node.preset ? presets.find((x) => x.id === node.preset) : undefined;
+  return { extraPrompt: extraPrompt(node, presets, ws), extraMcp: p?.mcp ?? [] };
 }
 
 /** Consoles with a launch in flight — guards double-starts from overlay, dock and menus. */
@@ -62,6 +73,7 @@ export async function launchConsole(id: string, resume: boolean, opts: LaunchOpt
       lead: node.lead,
       model: node.model,
       links: linkedTiles(node),
+      ...launchExtras(node),
     });
     // PTY is up; mounted TerminalViews attach themselves when they notice
     st.setRuntime(id, { running: true });

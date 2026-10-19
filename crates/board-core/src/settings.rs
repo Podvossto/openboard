@@ -32,6 +32,38 @@ pub struct Settings {
     pub auto_resume: bool,
     /// Extra accounts / providers (keys are in the OS credential store, never here).
     pub profiles: Vec<crate::profiles::Profile>,
+    /// User-made agent presets (sidebar shortcuts).
+    #[serde(default)]
+    pub agent_presets: Vec<AgentPreset>,
+}
+
+/// A saved agent recipe: one click on the sidebar creates a console from it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AgentPreset {
+    pub id: String,
+    pub name: String,
+    /// "devicon:<id>" | "emoji:<char>" | "data:image/..." (uploaded svg/png, ≤ 64 KB)
+    pub icon: String,
+    pub color: String,
+    pub agent: Option<AgentKind>,
+    pub profile: Option<String>,
+    pub model: Option<String>,
+    /// Role / standing instructions (Claude: --append-system-prompt).
+    pub role: String,
+    /// Skill names to focus on (Claude loads all skills; we tell it which ones matter).
+    pub skills: Vec<String>,
+    /// Extra MCP servers for this agent (Claude: merged into --mcp-config).
+    pub mcp: Vec<PresetMcp>,
+    pub lead: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PresetMcp {
+    pub name: String,
+    /// stdio command line, or the http(s) URL
+    pub target: String,
 }
 
 impl Default for Settings {
@@ -48,6 +80,7 @@ impl Default for Settings {
             show_usage: true,
             auto_resume: false,
             profiles: vec![],
+            agent_presets: vec![],
         }
     }
 }

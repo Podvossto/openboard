@@ -1,6 +1,15 @@
 // Agent → tile operations (pure, unit-tested). The backend forwards an agent's MCP tool
 // call as `tile://op`; `applyTileOp` returns the new tile data + a short text for the agent.
-import type { CalEvent, ChecklistItem, KanbanColumn, Tile } from "../../lib/types";
+import type { CalEvent, ChecklistItem, KanbanCard, KanbanColumn, Tile } from "../../lib/types";
+
+const iso = (ms?: number) => (ms ? new Date(ms).toISOString().slice(0, 16).replace("T", " ") : "");
+/** One card for the agent: id, text, who/when and the details (indented). */
+function cardLine(k: KanbanCard): string {
+  const meta = [k.createdBy && `by ${k.createdBy}`, k.createdAt && `created ${iso(k.createdAt)}`, k.updatedAt && `updated ${iso(k.updatedAt)}${k.updatedBy ? ` by ${k.updatedBy}` : ""}`]
+    .filter(Boolean)
+    .join(", ");
+  return `- [${k.id}] ${k.text}${meta ? ` (${meta})` : ""}${k.desc ? `\n  ${k.desc.replace(/\n/g, "\n  ")}` : ""}`;
+}
 
 export type OpResult<T> = { ok: true; data: T; text: string } | { ok: false; error: string };
 
@@ -15,7 +24,7 @@ export const isLinkable = (k: string): k is LinkableKind => (LINKABLE as readonl
 const pick = <T extends { id: string }>(list: T[], key: string, label: (x: T) => string): T | undefined =>
   list.find((x) => x.id === key) ?? list.find((x) => label(x).toLowerCase() === key.toLowerCase());
 
-function kanban(cols: KanbanColumn[], tool: string, a: Args, newId: () => string): OpResult<{ columns: KanbanColumn[] }> {
+function kanban(cols: KanbanColumn[], tool: string, a: Args, newId: () => string, by: Who): OpResult<{ columns: KanbanColumn[] }> {
   const findCard = (key: string) => {
     for (const c of cols) {
       const card = pick(c.cards, key, (x) => x.text);
@@ -30,13 +39,16 @@ function kanban(cols: KanbanColumn[], tool: string, a: Args, newId: () => string
       return {
         ok: true,
         data: { columns: cols },
-        text: cols.map((c) => `## ${c.name} (${c.id})\n${c.cards.map((k) => `- [${k.id}] ${k.text}`).join("\n") || "(empty)"}`).join("\n\n"),
+        text: cols
+          .map((c) => `## ${c.name} (${c.id})\n${c.cards.map(cardLine).join("\n") || "(empty)"}`)
+          .join("\n\n"),
       };
     case "kanban_add_card": {
       const want = str(a, "column");
       const col = want ? colOf(want) : cols[0];
       if (!col) return { ok: false, error: want ? `no column "${want}". Columns: ${names()}` : "the board has no columns" };
-      const card = { id: newId(), text: str(a, "text") };
+      const desc = str(a, "description");
+      const card: KanbanCard = { id: newId(), text: str(a, "text"), ...(desc ? { desc } : {}), createdAt: by.at, createdBy: by.name };
       return { ok: true, data: { columns: cols.map((c) => (c.id === col.id ? { ...c, cards: [...c.cards, card] } : c)) }, text: `Added [${card.id}] to ${col.name}.` };
     }
     case "kanban_move_card": {
@@ -47,17 +59,19 @@ function kanban(cols: KanbanColumn[], tool: string, a: Args, newId: () => string
       const without = cols.map((c) => ({ ...c, cards: c.cards.filter((k) => k.id !== hit.card.id) }));
       return {
         ok: true,
-        data: { columns: without.map((c) => (c.id === to.id ? { ...c, cards: [...c.cards, hit.card] } : c)) },
+        data: { columns: without.map((c) => (c.id === to.id ? { ...c, cards: [...c.cards, { ...hit.card, updatedAt: by.at, updatedBy: by.name }] } : c)) },
         text: `Moved "${hit.card.text}" from ${hit.col.name} to ${to.name}.`,
       };
     }
     case "kanban_update_card": {
       const hit = findCard(str(a, "card"));
       if (!hit) return { ok: false, error: `no card "${str(a, "card")}" — use kanban_list` };
-      const text = str(a, "text");
+      const text = str(a, "text") || hit.card.text;
+      const desc = typeof a.description === "string" ? (a.description as string).trim() : hit.card.desc;
+      const next = (k: KanbanCard): KanbanCard => ({ ...k, text, ...(desc ? { desc } : { desc: undefined }), updatedAt: by.at, updatedBy: by.name });
       return {
         ok: true,
-        data: { columns: cols.map((c) => ({ ...c, cards: c.cards.map((k) => (k.id === hit.card.id ? { ...k, text } : k)) })) },
+        data: { columns: cols.map((c) => ({ ...c, cards: c.cards.map((k) => (k.id === hit.card.id ? next(k) : k)) })) },
         text: `Updated [${hit.card.id}].`,
       };
     }
@@ -134,9 +148,15 @@ function calendar<T extends { events: CalEvent[] }>(d: T, tool: string, a: Args,
   return { ok: false, error: `unknown calendar tool ${tool}` };
 }
 
+/** Who made a change and when (stamped on kanban cards). */
+export interface Who {
+  name: string;
+  at: number;
+}
+
 /** Apply one agent tool call to a tile; never mutates the input. */
-export function applyTileOp(tile: Tile, tool: string, args: Args, newId: () => string): OpResult<Tile["data"]> {
-  if (tile.kind === "kanban" && tool.startsWith("kanban_")) return kanban((tile as Tile<"kanban">).data.columns ?? [], tool, args, newId);
+export function applyTileOp(tile: Tile, tool: string, args: Args, newId: () => string, by: Who = { name: "agent", at: Date.now() }): OpResult<Tile["data"]> {
+  if (tile.kind === "kanban" && tool.startsWith("kanban_")) return kanban((tile as Tile<"kanban">).data.columns ?? [], tool, args, newId, by);
   if (tile.kind === "checklist" && tool.startsWith("checklist_")) return checklist((tile as Tile<"checklist">).data.items ?? [], tool, args, newId);
   if (tile.kind === "calendar" && tool.startsWith("calendar_")) return calendar((tile as Tile<"calendar">).data, tool, args, newId);
   return { ok: false, error: `${tool} does not apply to a ${tile.kind} tile` };

@@ -9,6 +9,7 @@ const PATHS: Record<TileKind, string> = {
   git: "M7 5v10M7 15a2 2 0 100 4 2 2 0 000-4zM7 5a2 2 0 100-.01M17 9a2 2 0 100-4 2 2 0 000 4zM17 9c0 4-4 4-10 6",
   code: "M9 8l-4 4 4 4M15 8l4 4-4 4M13.5 5l-3 14",
   calendar: "M5 7h14v13H5zM5 11h14M9 4v4M15 4v4M9 15h3",
+  image: "M4 5h16v14H4zM4 16l5-5 4 4 2-2 5 5M15.5 9.5a1.5 1.5 0 100-.01",
 };
 
 export function TileIcon({ kind, size = 15 }: { kind: TileKind; size?: number }) {

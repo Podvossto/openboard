@@ -49,6 +49,10 @@ export interface SpawnArgs {
   lead?: boolean;
   /** per-console model override (--model) */
   model?: string;
+  /** Claude: appended system prompt (preset role + skills, auto-shared memory) */
+  extraPrompt?: string;
+  /** Claude: the preset's extra MCP servers */
+  extraMcp?: { name: string; target: string }[];
 }
 
 export interface LoadedSettings {

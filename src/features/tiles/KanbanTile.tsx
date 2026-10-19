@@ -1,5 +1,8 @@
 import { useState } from "react";
-import type { KanbanColumn, Tile, TileData } from "../../lib/types";
+import { createPortal } from "react-dom";
+import { CardDetail } from "./CardDetail";
+import { editCard } from "./logic";
+import type { KanbanCard, KanbanColumn, Tile, TileData } from "../../lib/types";
 import { localId, moveCard } from "./logic";
 
 const MIME = "application/x-agentboard-card";
@@ -9,6 +12,8 @@ export function KanbanTile({ tile, setData }: { tile: Tile<"kanban">; setData: (
   const cols = tile.data.columns ?? [];
   const set = (columns: KanbanColumn[]) => setData({ columns });
   const [drop, setDrop] = useState<{ col: string; index: number } | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
+  const openCard = open ? cols.flatMap((c) => c.cards.map((k) => ({ k, col: c }))).find((x) => x.k.id === open) : undefined;
 
   const onDrop = (col: string, index: number, e: React.DragEvent) => {
     e.preventDefault();
@@ -69,15 +74,30 @@ export function KanbanTile({ tile, setData }: { tile: Tile<"kanban">; setData: (
                     e.stopPropagation();
                     onDrop(col.id, drop?.col === col.id ? drop.index : i, e);
                   }}
+                  onClick={() => setOpen(card.id)}
+                  onKeyDown={(e) => e.key === "Enter" && setOpen(card.id)}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`Open card ${card.text}`}
+                  data-card={card.id}
                   className="group/card flex cursor-grab items-start gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-[13px] text-ink shadow-sm transition hover:border-line-strong active:cursor-grabbing"
                 >
-                  <span className="min-w-0 flex-1 break-words">{card.text}</span>
+                  <span className="min-w-0 flex-1 break-words">
+                    {card.text}
+                    {(card.desc || card.createdBy) && (
+                      <span className="mt-1 flex items-center gap-1.5 text-[10.5px] text-ink-3">
+                        {card.desc && <span title="Has details">≡</span>}
+                        {card.createdBy && card.createdBy !== "you" && <span className="truncate">by {card.createdBy}</span>}
+                      </span>
+                    )}
+                  </span>
                   <button
                     className="text-[11px] text-ink-3 opacity-0 transition hover:text-danger group-hover/card:opacity-100"
                     aria-label={`Delete card ${card.text}`}
-                    onClick={() =>
-                      set(cols.map((c) => (c.id === col.id ? { ...c, cards: c.cards.filter((k) => k.id !== card.id) } : c)))
-                    }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      set(cols.map((c) => (c.id === col.id ? { ...c, cards: c.cards.filter((k) => k.id !== card.id) } : c)));
+                    }}
                   >
                     ✕
                   </button>
@@ -88,7 +108,11 @@ export function KanbanTile({ tile, setData }: { tile: Tile<"kanban">; setData: (
           </div>
           <AddCard
             onAdd={(text) =>
-              set(cols.map((c) => (c.id === col.id ? { ...c, cards: [...c.cards, { id: localId("card"), text }] } : c)))
+              set(
+                cols.map((c) =>
+                  c.id === col.id ? { ...c, cards: [...c.cards, { id: localId("card"), text, createdAt: Date.now(), createdBy: "you" } satisfies KanbanCard] } : c,
+                ),
+              )
             }
           />
         </section>
@@ -99,6 +123,21 @@ export function KanbanTile({ tile, setData }: { tile: Tile<"kanban">; setData: (
       >
         + Column
       </button>
+      {openCard &&
+        createPortal(
+          <CardDetail
+            card={openCard.k}
+            column={openCard.col.name}
+            columns={cols.map((c) => ({ id: c.id, name: c.name }))}
+            onClose={() => setOpen(null)}
+            onSave={(patch, toCol) => set(editCard(cols, openCard.k.id, patch, toCol, { name: "you", at: Date.now() }))}
+            onDelete={() => {
+              set(cols.map((c) => ({ ...c, cards: c.cards.filter((k) => k.id !== openCard.k.id) })));
+              setOpen(null);
+            }}
+          />,
+          document.body,
+        )}
     </div>
   );
 }

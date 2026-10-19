@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Tile } from "../../lib/types";
+import type { KanbanCard, Tile } from "../../lib/types";
 import { applyTileOp, isLinkable, toggleLink } from "./tileOps";
 
 let n = 0;
@@ -22,6 +22,24 @@ const kanban: Tile<"kanban"> = {
 };
 const checklist: Tile<"checklist"> = { ...kanban, id: "l", kind: "checklist", data: { items: [{ id: "i1", text: "write tests", done: false }] } };
 const calendar: Tile<"calendar"> = { ...kanban, id: "c", kind: "calendar", data: { events: [], view: "month", cursor: "2026-10-01" } };
+
+describe("kanban card metadata", () => {
+  it("stamps creator / updater and lists details for the agent", () => {
+    const k: Tile<"kanban"> = { ...kanban, data: { columns: [{ id: "todo", name: "Todo", cards: [] }] } };
+    const a = applyTileOp(k, "kanban_add_card", { text: "Ship", description: "v0.1.4 release" }, () => "c9", { name: "builder", at: Date.UTC(2026, 9, 19, 10, 0) });
+    if (!a.ok) throw new Error(a.error);
+    const card = (a.data as { columns: { cards: KanbanCard[] }[] }).columns[0]!.cards[0]!;
+    expect(card).toMatchObject({ text: "Ship", desc: "v0.1.4 release", createdBy: "builder", createdAt: Date.UTC(2026, 9, 19, 10, 0) });
+    const k2 = { ...k, data: a.data } as Tile<"kanban">;
+    const u = applyTileOp(k2, "kanban_update_card", { card: "c9", description: "now" }, () => "x", { name: "reviewer", at: 5 });
+    if (!u.ok) throw new Error(u.error);
+    const c2 = (u.data as { columns: { cards: KanbanCard[] }[] }).columns[0]!.cards[0]!;
+    expect(c2).toMatchObject({ text: "Ship", desc: "now", updatedBy: "reviewer", updatedAt: 5, createdBy: "builder" });
+    const l = applyTileOp({ ...k, data: u.data } as Tile<"kanban">, "kanban_list", {}, () => "x");
+    expect(l.ok && l.text).toContain("by builder, created 2026-10-19 10:00");
+    expect(l.ok && l.text).toContain("\n  now");
+  });
+});
 
 describe("applyTileOp — kanban", () => {
   it("adds to the first column by default and to a named column", () => {

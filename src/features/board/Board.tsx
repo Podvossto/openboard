@@ -29,6 +29,7 @@ import { OrchestratorHud } from "../links/OrchestratorHud";
 import { linkConsole, linkValid, unlinkConsole } from "../links/linking";
 import { SelectionMode } from "@xyflow/react";
 import type { Section, Tile } from "../../lib/types";
+import { dropImages } from "../tiles/imageDrop";
 import "./board.css";
 
 const nodeTypes = { console: ConsoleNodeView, group: GroupNodeView, tile: TileNodeView, section: SectionNodeView };
@@ -160,7 +161,24 @@ function WorkspaceCanvas() {
   }, []);
 
   return (
-    <div className="relative w-full h-full overflow-hidden" onPointerMove={onPointerMove} onPointerLeave={() => setMousePos(null)}>
+    <div
+      className="relative w-full h-full overflow-hidden"
+      onPointerMove={onPointerMove}
+      onPointerLeave={() => setMousePos(null)}
+      onDragOver={(e) => {
+        // item 10: picture files → image tiles (card/skill drags carry other MIME types)
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+      }}
+      onDrop={(e) => {
+        const files = [...e.dataTransfer.files];
+        if (!files.length) return;
+        e.preventDefault();
+        const at = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+        void dropImages(files, rf, at);
+      }}
+    >
 
       <ReactFlow
         className={[resizing ? "is-resizing" : "", linking ? "is-linking" : ""].filter(Boolean).join(" ") || undefined}

@@ -109,6 +109,12 @@ pub struct SpawnArgs {
     /// Linked tiles (kind, title) — the agent gets the matching tile tools.
     #[serde(default)]
     links: Vec<(String, String)>,
+    /// Extra system prompt (workspace memory, preset role + focus skills) — Claude only.
+    #[serde(default)]
+    extra_prompt: String,
+    /// Extra MCP servers from the console's agent preset — Claude only.
+    #[serde(default)]
+    extra_mcp: Vec<board_core::settings::PresetMcp>,
 }
 
 #[tauri::command]
@@ -189,35 +195,46 @@ pub fn spawn_console(state: State<'_, AppState>, args: SpawnArgs) -> Result<()> 
         let mut spec = launch_spec(&agent, mode, settings_file.as_deref());
         let kinds: Vec<String> = args.links.iter().map(|l| l.0.clone()).collect();
         let tiles_prompt = board_core::mcp::tiles_prompt(&args.links);
-        if (args.lead || !args.links.is_empty()) && matches!(agent, AgentKind::ClaudeCode) {
-            let cfg = board_core::mcp::claude_mcp_config(
-                &state.hooks.url(),
-                &state.hooks.token,
-                &args.id,
-            );
-            let path = state.data_dir.join(format!("mcp-{}.json", args.id));
-            std::fs::write(&path, serde_json::to_vec(&cfg)?)?;
-            let prompt = [
+        if matches!(agent, AgentKind::ClaudeCode) {
+            let board_tools = args.lead || !args.links.is_empty();
+            let mut servers = board_core::mcp::preset_mcp_servers(&args.extra_mcp);
+            if board_tools {
+                let cfg = board_core::mcp::claude_mcp_config(
+                    &state.hooks.url(),
+                    &state.hooks.token,
+                    &args.id,
+                );
+                if let Some(m) = cfg.get("mcpServers").and_then(|v| v.as_object()) {
+                    servers.extend(m.clone());
+                }
+            }
+            if !servers.is_empty() {
+                let path = state.data_dir.join(format!("mcp-{}.json", args.id));
+                std::fs::write(
+                    &path,
+                    serde_json::to_vec(&serde_json::json!({ "mcpServers": servers }))?,
+                )?;
+                spec.args
+                    .extend(["--mcp-config".into(), path.display().to_string()]);
+            }
+            if board_tools {
+                spec.args.extend([
+                    "--allowedTools".into(),
+                    board_core::mcp::allowed_tools(args.lead, &kinds),
+                ]);
+            }
+            let prompt = board_core::mcp::join_prompts(&[
                 if args.lead {
                     board_core::mcp::LEAD_PROMPT
                 } else {
                     ""
                 },
                 tiles_prompt.as_str(),
-            ]
-            .iter()
-            .filter(|p| !p.is_empty())
-            .copied()
-            .collect::<Vec<_>>()
-            .join("\n\n");
-            spec.args.extend([
-                "--mcp-config".into(),
-                path.display().to_string(),
-                "--allowedTools".into(),
-                board_core::mcp::allowed_tools(args.lead, &kinds),
-                "--append-system-prompt".into(),
-                prompt,
+                args.extra_prompt.as_str(),
             ]);
+            if !prompt.is_empty() {
+                spec.args.extend(["--append-system-prompt".into(), prompt]);
+            }
         }
         match agent {
             AgentKind::ClaudeCode => spec.args.extend(settings.claude_args.iter().cloned()),

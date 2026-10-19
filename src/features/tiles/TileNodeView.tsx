@@ -16,6 +16,7 @@ import { GitTile } from "./GitTile";
 import { CodeTile } from "./CodeTile";
 import { isLinkable } from "../links/tileOps";
 import { CalendarTile } from "./CalendarTile";
+import { ImageTile } from "./ImageTile";
 
 const MIN: Record<Tile["kind"], [number, number]> = {
   note: [200, 140],
@@ -25,6 +26,7 @@ const MIN: Record<Tile["kind"], [number, number]> = {
   git: [320, 300],
   code: [300, 200],
   calendar: [400, 340],
+  image: [120, 90],
 };
 
 function TileMenu({
@@ -244,6 +246,7 @@ export const TileNodeView = memo(function TileNodeView({ data, selected }: NodeP
         {t.kind === "code" && <CodeTile tile={t as Tile<"code">} />}
         {t.kind === "git" && <GitTile tile={t as Tile<"git">} setData={setData} />}
         {t.kind === "calendar" && <CalendarTile tile={t as Tile<"calendar">} setData={setData} />}
+        {t.kind === "image" && <ImageTile tile={t as Tile<"image">} />}
       </div>
     </motion.div>
   );

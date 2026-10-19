@@ -42,9 +42,9 @@ type TileTool = (
 pub const TILE_TOOLS: &[TileTool] = &[
     ("list_linked_tiles", "", "List the board tiles (kanban / checklist / calendar) linked to your console: title, kind and id. Call this first.", "{}", &[]),
     ("kanban_list", "kanban", "Show a kanban board: columns and their cards (with ids).", r#"{"tile":{"type":"string","description":"Tile title or id"}}"#, &["tile"]),
-    ("kanban_add_card", "kanban", "Add a card to a kanban column (default: the first column).", r#"{"tile":{"type":"string"},"text":{"type":"string"},"column":{"type":"string","description":"Column name or id (optional)"}}"#, &["tile", "text"]),
+    ("kanban_add_card", "kanban", "Add a card to a kanban column (default: the first column).", r#"{"tile":{"type":"string"},"text":{"type":"string","description":"Short card title"},"description":{"type":"string","description":"Optional details"},"column":{"type":"string","description":"Column name or id (optional)"}}"#, &["tile", "text"]),
     ("kanban_move_card", "kanban", "Move a card to another column (e.g. to Doing / Done).", r#"{"tile":{"type":"string"},"card":{"type":"string","description":"Card id or exact text"},"column":{"type":"string"}}"#, &["tile", "card", "column"]),
-    ("kanban_update_card", "kanban", "Change a card's text.", r#"{"tile":{"type":"string"},"card":{"type":"string"},"text":{"type":"string"}}"#, &["tile", "card", "text"]),
+    ("kanban_update_card", "kanban", "Change a card's title and/or details.", r#"{"tile":{"type":"string"},"card":{"type":"string"},"text":{"type":"string"},"description":{"type":"string"}}"#, &["tile", "card"]),
     ("kanban_delete_card", "kanban", "Delete a card.", r#"{"tile":{"type":"string"},"card":{"type":"string"}}"#, &["tile", "card"]),
     ("checklist_list", "checklist", "Show a checklist's items (with ids and done state).", r#"{"tile":{"type":"string"}}"#, &["tile"]),
     ("checklist_add", "checklist", "Add an item to a checklist.", r#"{"tile":{"type":"string"},"text":{"type":"string"}}"#, &["tile", "text"]),
@@ -274,6 +274,69 @@ pub fn handle(tools: &dyn Tools, caller: &str, req: &Value) -> Option<Value> {
     })
 }
 
+/// Extra MCP servers from an agent preset → `mcpServers` entries. A target starting with
+/// http(s):// is an http server; anything else is a stdio command line.
+pub fn preset_mcp_servers(extra: &[crate::settings::PresetMcp]) -> serde_json::Map<String, Value> {
+    let mut m = serde_json::Map::new();
+    for e in extra {
+        let name = e.name.trim();
+        let target = e.target.trim();
+        if name.is_empty() || target.is_empty() || name == "agent-board" {
+            continue;
+        }
+        let v = if target.starts_with("http://") || target.starts_with("https://") {
+            json!({"type": "http", "url": target})
+        } else {
+            let parts = split_cmdline(target);
+            let Some((cmd, rest)) = parts.split_first() else {
+                continue;
+            };
+            json!({"type": "stdio", "command": cmd, "args": rest})
+        };
+        m.insert(name.to_string(), v);
+    }
+    m
+}
+
+/// Quote-aware split ("a b" stays one arg; no escapes — Windows paths keep their backslashes).
+pub fn split_cmdline(s: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let mut quote: Option<char> = None;
+    let mut has = false;
+    for ch in s.chars() {
+        match quote {
+            Some(q) if ch == q => quote = None,
+            Some(_) => cur.push(ch),
+            None if ch == '"' || ch == '\'' => {
+                quote = Some(ch);
+                has = true;
+            }
+            None if ch.is_whitespace() => {
+                if has || !cur.is_empty() {
+                    out.push(std::mem::take(&mut cur));
+                    has = false;
+                }
+            }
+            None => cur.push(ch),
+        }
+    }
+    if has || !cur.is_empty() {
+        out.push(cur);
+    }
+    out
+}
+
+/// Join non-empty system-prompt parts (lead, tiles, memory, preset role…).
+pub fn join_prompts(parts: &[&str]) -> String {
+    parts
+        .iter()
+        .map(|p| p.trim())
+        .filter(|p| !p.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
 /// `--mcp-config` JSON for a lead console.
 pub fn claude_mcp_config(hook_url: &str, token: &str, console_id: &str) -> Value {
     json!({"mcpServers": {"agent-board": {
@@ -488,6 +551,38 @@ mod tests {
             .iter()
             .map(|t| t["name"].as_str().unwrap().to_string())
             .collect()
+    }
+
+    #[test]
+    fn preset_mcp_servers_build_http_and_stdio() {
+        use crate::settings::PresetMcp;
+        let m = preset_mcp_servers(&[
+            PresetMcp {
+                name: "docs".into(),
+                target: "https://mcp.example.com/sse".into(),
+            },
+            PresetMcp {
+                name: "fs".into(),
+                target: "npx -y @mcp/fs \"C:/my dir\"".into(),
+            },
+            PresetMcp {
+                name: "agent-board".into(),
+                target: "x".into(),
+            },
+            PresetMcp {
+                name: "".into(),
+                target: "y".into(),
+            },
+        ]);
+        assert_eq!(m.len(), 2);
+        assert_eq!(m["docs"]["type"], "http");
+        assert_eq!(m["fs"]["command"], "npx");
+        assert_eq!(m["fs"]["args"], json!(["-y", "@mcp/fs", "C:/my dir"]));
+    }
+
+    #[test]
+    fn join_prompts_skips_empty() {
+        assert_eq!(join_prompts(&["a", " ", "", "b\n"]), "a\n\nb");
     }
 
     #[test]

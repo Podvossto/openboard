@@ -44,9 +44,12 @@ pub struct Workspace {
     /// Large labelled canvas frames; members carry `section` and keep absolute coordinates.
     #[serde(default)]
     pub sections: Vec<Section>,
-    /// Shared notes for this workspace. Only sent to a console when the user asks.
+    /// Shared notes for this workspace.
     #[serde(default)]
     pub memory: String,
+    /// Give `memory` to every Claude console started in this workspace (system prompt).
+    #[serde(default)]
+    pub memory_auto: bool,
     /// Non-console tiles: notes, checklists, kanban, web previews, git cards.
     #[serde(default)]
     pub tiles: Vec<Tile>,
@@ -65,6 +68,7 @@ impl Workspace {
             groups: vec![],
             sections: vec![],
             memory: String::new(),
+            memory_auto: false,
             tiles: vec![],
             ink: vec![],
         }
@@ -148,6 +152,7 @@ pub enum TileKind {
     Git,
     Code,
     Calendar,
+    Image,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -187,6 +192,9 @@ pub struct ConsoleNode {
     /// Tile ids linked to this console (agent ↔ tile): it gets tools for them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<String>,
+    /// Agent preset this console was made from (role prompt / extra MCP come from it).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preset: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

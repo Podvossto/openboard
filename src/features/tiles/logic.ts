@@ -14,7 +14,21 @@ export const TILE_META: Record<TileKind, { label: string; w: number; h: number; 
   git: { label: "Git", w: 560, h: 520, tint: "#ff8a5c" },
   code: { label: "Code", w: 520, h: 360, tint: "#c792ea" },
   calendar: { label: "Calendar", w: 560, h: 460, tint: "#e57ad8" },
+  image: { label: "Image", w: 420, h: 300, tint: "#6fc8ff" },
 };
+
+/** Image tile size: keep the aspect ratio, longest side ≤ max (board px). */
+export function fitImage(w: number, h: number, max = 520): { w: number; h: number } {
+  if (!(w > 0 && h > 0)) return { w: TILE_META.image.w, h: TILE_META.image.h };
+  const k = Math.min(1, max / Math.max(w, h));
+  return { w: Math.max(120, Math.round(w * k)), h: Math.max(90, Math.round(h * k) + 34) };
+}
+
+/** Accept only real raster/vector image files (by MIME, then by extension). */
+export function isImageFile(f: { type: string; name: string }): boolean {
+  if (/^image\/(png|jpe?g|gif|webp|bmp|svg\+xml|avif)$/i.test(f.type)) return true;
+  return /\.(png|jpe?g|gif|webp|bmp|svg|avif)$/i.test(f.name);
+}
 
 /** Web tile device presets ("responsive" fills the tile; others render at exact CSS px). */
 export interface DevicePreset {
@@ -66,6 +80,7 @@ export function defaultData<K extends TileKind>(kind: K): TileData[K] {
     git: { cwd: "" },
     code: { root: "", path: "" },
     calendar: { events: [], view: "month", cursor: todayISO() },
+    image: { src: "" },
   };
   return d[kind];
 }
@@ -95,6 +110,37 @@ export const checklistMarkdown = (title: string, items: ChecklistItem[]) =>
 
 // ---------- kanban ----------
 /** Move a card to column `toCol` at `index` (index clamped; same-column reorder supported). */
+/**
+ * Edit one card's title / details (and optionally move it to another column, appended at
+ * the end). Stamps updatedAt/updatedBy only when something actually changed.
+ */
+/** "19 Oct 2026, 10:05" (local time) or "" when unknown. */
+export function cardWhen(ms?: number): string {
+  if (!ms) return "";
+  return new Date(ms).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+export function editCard(
+  cols: KanbanColumn[],
+  cardId: string,
+  patch: { text?: string; desc?: string },
+  toCol: string | undefined,
+  by: { name: string; at: number },
+): KanbanColumn[] {
+  const from = cols.find((c) => c.cards.some((k) => k.id === cardId));
+  const card = from?.cards.find((k) => k.id === cardId);
+  if (!from || !card) return cols;
+  const text = patch.text?.trim() || card.text;
+  const desc = patch.desc === undefined ? card.desc : patch.desc.trim() || undefined;
+  const moving = !!toCol && toCol !== from.id && cols.some((c) => c.id === toCol);
+  if (text === card.text && desc === card.desc && !moving) return cols;
+  const next = { ...card, text, desc, updatedAt: by.at, updatedBy: by.name };
+  if (!moving) return cols.map((c) => (c.id === from.id ? { ...c, cards: c.cards.map((k) => (k.id === cardId ? next : k)) } : c));
+  return cols.map((c) =>
+    c.id === from.id ? { ...c, cards: c.cards.filter((k) => k.id !== cardId) } : c.id === toCol ? { ...c, cards: [...c.cards, next] } : c,
+  );
+}
+
 export function moveCard(cols: KanbanColumn[], cardId: string, toCol: string, index: number): KanbanColumn[] {
   let card: KanbanColumn["cards"][number] | undefined;
   let fromCol = "";

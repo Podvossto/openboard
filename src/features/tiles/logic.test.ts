@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { KanbanColumn } from "../../lib/types";
-import { changeBadge, checklistMarkdown, checklistProgress, DEVICES, defaultData, fitScale, freeSpot, matchPreset, moveCard, newTile, normalizeUrl } from "./logic";
+import { changeBadge, checklistMarkdown, checklistProgress, DEVICES, defaultData, fitScale, freeSpot, matchPreset, moveCard, newTile, normalizeUrl, fitImage, isImageFile, editCard } from "./logic";
 
 const cols = (): KanbanColumn[] => [
   { id: "a", name: "To do", cards: [{ id: "1", text: "one" }, { id: "2", text: "two" }, { id: "3", text: "three" }] },
@@ -121,5 +121,37 @@ describe("freeSpot", () => {
       for (const r of taken) expect(p.x < r.x + r.width + 24 && p.x + 224 > r.x && p.y < r.y + r.height + 24 && p.y + 174 > r.y).toBe(false);
       taken.push({ ...p, width: 200, height: 150 });
     }
+  });
+});
+
+describe("image tiles", () => {
+  it("fitImage keeps aspect ratio within the max side", () => {
+    expect(fitImage(2000, 1000)).toEqual({ w: 520, h: 260 + 34 });
+    expect(fitImage(100, 50)).toEqual({ w: 120, h: 90 });
+    expect(fitImage(0, 0)).toEqual({ w: 420, h: 300 });
+  });
+  it("isImageFile accepts pictures only", () => {
+    expect(isImageFile({ type: "image/png", name: "a.png" })).toBe(true);
+    expect(isImageFile({ type: "", name: "logo.SVG" })).toBe(true);
+    expect(isImageFile({ type: "application/pdf", name: "x.pdf" })).toBe(false);
+    expect(isImageFile({ type: "text/plain", name: "notes.txt" })).toBe(false);
+  });
+});
+
+describe("editCard", () => {
+  const by = { name: "you", at: 99 };
+  it("edits title/details and stamps the editor", () => {
+    const out = editCard(cols(), "2", { text: " TWO ", desc: "more" }, undefined, by);
+    expect(out[0]!.cards[1]).toEqual({ id: "2", text: "TWO", desc: "more", updatedAt: 99, updatedBy: "you" });
+  });
+  it("is a no-op (same array) when nothing changed", () => {
+    const c = cols();
+    expect(editCard(c, "1", { text: "one", desc: "" }, "a", by)).toBe(c);
+    expect(editCard(c, "nope", { text: "x" }, undefined, by)).toBe(c);
+  });
+  it("moves to another column (appended)", () => {
+    const out = editCard(cols(), "1", {}, "b", by);
+    expect(out[0]!.cards.map((k) => k.id)).toEqual(["2", "3"]);
+    expect(out[1]!.cards.at(-1)).toMatchObject({ id: "1", updatedBy: "you" });
   });
 });

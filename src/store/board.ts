@@ -98,6 +98,7 @@ interface BoardState {
   setActive: (id: string) => void;
   setViewport: (v: Viewport) => void;
   setMemory: (text: string) => void;
+  setMemoryAuto: (on: boolean) => void;
 
   // consoles (always in the ACTIVE workspace unless noted)
   addConsoles: (c: ConsoleNode[]) => void;
@@ -197,6 +198,8 @@ export const useBoard = create<BoardState>((set) => ({
     set((s) => ({ board: withActive(s.board, (w) => ({ ...w, viewport })), revision: s.revision + 1 })),
   setMemory: (memory) =>
     set((s) => ({ board: withActive(s.board, (w) => ({ ...w, memory })), revision: s.revision + 1 })),
+  setMemoryAuto: (memoryAuto) =>
+    set((s) => ({ board: withActive(s.board, (w) => ({ ...w, memoryAuto })), revision: s.revision + 1 })),
 
   addConsoles: (cs) =>
     set((s) => ({

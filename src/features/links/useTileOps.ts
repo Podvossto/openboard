@@ -23,7 +23,7 @@ export function useTileOps() {
         void ipc.tileOpResult(opId, null, "that tile is no longer linked to you").catch(() => undefined);
         return;
       }
-      const r = applyTileOp(t, tool, args ?? {}, shortId);
+      const r = applyTileOp(t, tool, args ?? {}, shortId, { name: owner.title, at: Date.now() });
       if (!r.ok) {
         void ipc.tileOpResult(opId, null, r.error).catch(() => undefined);
         return;
