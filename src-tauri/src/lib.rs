@@ -3,6 +3,7 @@ mod commands;
 mod events;
 mod orchestrator;
 mod state;
+mod updater;
 
 use std::sync::Arc;
 
@@ -32,6 +33,8 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updater::PendingUpdate::default())
         .setup(|app| {
             let handle = app.handle().clone();
             let data_dir = app.path().app_data_dir()?;
@@ -116,6 +119,9 @@ pub fn run() {
             commands::usage_all,
             commands::usage_analytics,
             commands::sync_roster,
+            updater::app_version,
+            updater::update_check,
+            updater::update_install,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Agent Board")

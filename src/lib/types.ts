@@ -369,3 +369,11 @@ export interface GoalVerdict {
   done: boolean;
   reason: string;
 }
+
+/** In-app updater (src-tauri/src/updater.rs). */
+export interface UpdateInfo {
+  version: string;
+  currentVersion: string;
+  notes: string | null;
+  date: string | null;
+}

@@ -6,6 +6,7 @@ import { ask } from "../../lib/dialog";
 import { ipc } from "../../lib/ipc";
 import type { AccountUsage, Usage, Workspace } from "../../lib/types";
 import { useDismiss } from "../dock/useDismiss";
+import { UpdateButton } from "../updater/UpdatePrompt";
 import { activeWorkspace, statusCounts, useBoard } from "../../store/board";
 import { cleanName, formatReset, nextInCycle, nextWorkspaceName, pct, usageLabel, usageLevel, usageTooltip } from "./format";
 
@@ -375,6 +376,7 @@ export function TopBar() {
         {pill("working", counts.working, "working")}
         {pill("needsYou", counts.needsYou, "need you", counts.needsYou > 0 ? jumpNext : undefined)}
         {pill("resting", counts.resting, "resting")}
+        <UpdateButton />
         {showUsage && <UsagePill />}
 
         <div className="mx-1 h-5 w-px bg-line/60" />

@@ -17,6 +17,8 @@ import { useAutosave } from "../features/board/useAutosave";
 import { resumeAll } from "../features/console/launch";
 import { ipc } from "../lib/ipc";
 import { useBoard } from "../store/board";
+import { UpdatePrompt } from "../features/updater/UpdatePrompt";
+import { useUpdaterBoot } from "../features/updater/store";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { AddConsoleModal } from "../features/console/AddConsoleModal";
 
@@ -58,6 +60,7 @@ export function App() {
   useBoardRuntime();
   useAutosave();
   useLoops();
+  useUpdaterBoot();
   useOrchestrator();
 
   if (!loaded) return <div className="splash">Agent Board</div>;
@@ -96,6 +99,7 @@ export function App() {
             onClose={() => useBoard.getState().setUi({ addConsole: null })}
           />
         )}
+        <UpdatePrompt />
         <ConfirmDialog />
       </div>
     </ReactFlowProvider>

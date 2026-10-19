@@ -8,6 +8,7 @@ import { activeWorkspace, CONSOLE_H, CONSOLE_W, nextPosition, useBoard } from ".
 import { clampFont, formatArgs, parseArgs } from "./args";
 import { AgentIcon, CatalogIcon } from "../../components/AgentIcon";
 import { ProfilesSection } from "./ProfilesSection";
+import { UpdateSettings } from "../updater/UpdatePrompt";
 import "./settings.css";
 
 type TabId = "general" | "agents" | "providers" | "terminal";
@@ -286,6 +287,10 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           {activeTab === "general" && (
             <section className="set-section">
               <h3>General Preferences</h3>
+              <div className="field">
+                <label>Updates</label>
+                <UpdateSettings />
+              </div>
               <div className="field">
                 <label htmlFor="set-cwd">Default working directory</label>
                 <div className="row">

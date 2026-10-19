@@ -4,6 +4,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   AccountUsage,
+  UpdateInfo,
   AgentKind,
   Analytics,
   KeyStatus,
@@ -77,6 +78,11 @@ export const ipc = {
   profileKeyStatus: () => invoke<KeyStatus[]>("profile_key_status"),
   setProfileKey: (id: string, key: string) => invoke<void>("set_profile_key", { id, key }),
   deleteProfileKey: (id: string) => invoke<void>("delete_profile_key", { id }),
+  appVersion: () => invoke<string>("app_version"),
+  /** null = up to date */
+  updateCheck: () => invoke<UpdateInfo | null>("update_check"),
+  /** downloads, verifies the signature, installs and restarts */
+  updateInstall: () => invoke<void>("update_install"),
   syncRoster: (roster: { id: string; title: string; agent: string; group?: string }[]) =>
     invoke<void>("sync_roster", { roster }),
   usageAll: () => invoke<AccountUsage[]>("usage_all"),
@@ -105,6 +111,8 @@ export const events = {
     listen<{ from: string; agent: string; title: string; task: string }>("orchestrator://spawn", (e) => cb(e.payload)),
   onOrchestratorSent: (cb: (p: { from: string; to: string }) => void): Promise<UnlistenFn> =>
     listen<{ from: string; to: string }>("orchestrator://sent", (e) => cb(e.payload)),
+  onUpdateProgress: (cb: (p: { downloaded: number; total: number | null }) => void): Promise<UnlistenFn> =>
+    listen<{ downloaded: number; total: number | null }>("updater://progress", (e) => cb(e.payload)),
   /** every Claude hook call (diagnostics + session-id tracking) */
   onHook: (
     cb: (p: { id: string; event: string; session: string | null }) => void,

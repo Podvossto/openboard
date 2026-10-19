@@ -247,6 +247,22 @@ w.__TAURI_INTERNALS__ = {
         return null;
       case "claude_usage":
         return { session: { percent: 34, resetsAt: new Date(Date.now() + 2 * 3600e3).toISOString() }, weekly: { percent: 71, resetsAt: null }, error: null };
+      case "app_version":
+        return "0.1.0";
+      case "update_check": {
+        // window.__update: null = up to date; "fail" = unreachable; else an UpdateInfo
+        const u = (window as unknown as { __update?: unknown }).__update;
+        if (u === "fail") throw "update: error sending request for url (http://updates.example.invalid:8740/agent-board/latest.json)";
+        return u ?? null;
+      }
+      case "update_install": {
+        for (const d of [400_000, 1_200_000, 2_000_000]) {
+          await new Promise((r) => setTimeout(r, 120));
+          emit("updater://progress", { downloaded: d, total: 2_000_000 });
+        }
+        (window as unknown as { __installed?: boolean }).__installed = true;
+        return null;
+      }
       case "usage_analytics":
         return mkAnalytics(Number(args.days) || 30);
       case "attach_console": {

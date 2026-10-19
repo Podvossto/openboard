@@ -19,6 +19,8 @@ tauri = { version = "2", features = ["unstable"] }  # unstable = multiwebview (w
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-single-instance = "2"
+# native-tls (SChannel on Windows): no `ring`, so the Linux cross-compile needs no C toolchain
+tauri-plugin-updater = { version = "2", default-features = false, features = ["native-tls", "system-proxy", "zip"] }
 serde.workspace = true
 serde_json.workspace = true
 uuid.workspace = true
