@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMcpServer, mcpTarget, slugifySkill, validateSkillForm } from "./logic";
+import { buildMcpServer, mcpTarget, mergeSkills, parseSkillFile, slugifySkill, validateSkillForm } from "./logic";
 
 describe("skill form", () => {
   it("validates name and description", () => {
@@ -39,5 +39,62 @@ describe("buildMcpServer", () => {
   it("mcpTarget", () => {
     expect(mcpTarget({ command: "npx", args: ["-y", "p"], url: null })).toBe("npx -y p");
     expect(mcpTarget({ command: null, args: [], url: "https://h" })).toBe("https://h");
+  });
+});
+
+describe("mergeSkills", () => {
+  const cl = { cli: "claude" as const, profile: null, label: "Claude Code" };
+  const cx = { cli: "codex" as const, profile: null, label: "Codex" };
+  const work = { cli: "claude" as const, profile: "p1", label: "Work" };
+  const sk = (name: string, description = "d", scope: "user" | "project" = "user", kind: "skill" | "prompt" = "skill") => ({ name, description, scope, path: `/x/${name}`, kind });
+  it("dedupes identical skills across sources and lists all sources", () => {
+    const m = mergeSkills([
+      { source: cl, skills: [sk("a"), sk("b")] },
+      { source: work, skills: [sk("a")] },
+      { source: cx, skills: [sk("a"), sk("c", "d", "user", "prompt")] },
+    ]);
+    expect(m.map((s) => s.name)).toEqual(["a", "b", "c"]);
+    expect(m[0]?.sources.map((s) => s.label)).toEqual(["Claude Code", "Work", "Codex"]);
+    expect(m[1]?.sources).toHaveLength(1);
+  });
+  it("keeps skills that differ by description or scope separate", () => {
+    const m = mergeSkills([
+      { source: cl, skills: [sk("a", "one"), sk("a", "one", "project")] },
+      { source: cx, skills: [sk("a", "two")] },
+    ]);
+    expect(m).toHaveLength(3);
+  });
+  it("does not duplicate a source", () => {
+    const m = mergeSkills([{ source: cl, skills: [sk("a"), sk("a")] }]);
+    expect(m[0]?.sources).toHaveLength(1);
+  });
+  it("handles empty input", () => {
+    expect(mergeSkills([])).toEqual([]);
+  });
+});
+
+describe("parseSkillFile", () => {
+  it("reads frontmatter name/description and strips it from the body", () => {
+    const r = parseSkillFile("SKILL.md", "---\nname: My Skill\ndescription: \"Does things\"\n---\n\n# Title\nBody\n");
+    expect(r).toEqual({ name: "my-skill", description: "Does things", body: "# Title\nBody\n" });
+  });
+  it("handles CRLF and BOM", () => {
+    const r = parseSkillFile("x.md", "\uFEFF---\r\nname: a-b\r\ndescription: D\r\n---\r\nhi");
+    expect(r.name).toBe("a-b");
+    expect(r.description).toBe("D");
+    expect(r.body).toBe("hi");
+  });
+  it("falls back to filename and first non-heading line", () => {
+    const r = parseSkillFile("Code Review Helper.md", "# Heading\n\nReview code carefully.\nMore");
+    expect(r.name).toBe("code-review-helper");
+    expect(r.description).toBe("Review code carefully.");
+    expect(r.body).toBe("# Heading\n\nReview code carefully.\nMore");
+  });
+  it("uses default description when body is only headings/empty", () => {
+    expect(parseSkillFile("a.md", "# Only heading").description).toBe("Imported skill");
+    expect(parseSkillFile("a.md", "").description).toBe("Imported skill");
+  });
+  it("uses filename when frontmatter has no name", () => {
+    expect(parseSkillFile("foo_bar.md", "---\ndescription: x\n---\nb").name).toBe("foo-bar");
   });
 });

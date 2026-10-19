@@ -1,4 +1,4 @@
-import type { AddMcpServer, ExtCli, ExtScope, McpTransport } from "../../lib/types";
+import type { AddMcpServer, ExtCli, ExtScope, McpTransport, Skill } from "../../lib/types";
 import { parseArgs } from "../settings/args";
 
 export const SKILL_NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -69,3 +69,62 @@ export function buildMcpServer(f: McpForm, cli: ExtCli): McpBuild {
 
 export const mcpTarget = (s: { command: string | null; args: string[]; url: string | null }) =>
   s.url ?? [s.command ?? "", ...s.args].join(" ").trim();
+
+// ---------- unified skills list ----------
+
+export interface SkillSource {
+  cli: ExtCli;
+  profile: string | null;
+  label: string;
+}
+
+export const sourceKey = (s: { cli: ExtCli; profile: string | null }) => `${s.cli}:${s.profile ?? ""}`;
+
+export interface MergedSkill extends Skill {
+  sources: SkillSource[];
+}
+
+/** Merge per-source skill lists; identical name+description+scope(+kind) collapse into one entry listing every source. */
+export function mergeSkills(results: { source: SkillSource; skills: Skill[] }[]): MergedSkill[] {
+  const map = new Map<string, MergedSkill>();
+  for (const { source, skills } of results) {
+    for (const s of skills) {
+      const key = JSON.stringify([s.kind, s.scope, s.name, s.description.trim()]);
+      const hit = map.get(key);
+      if (!hit) map.set(key, { ...s, sources: [source] });
+      else if (!hit.sources.some((x) => sourceKey(x) === sourceKey(source))) hit.sources.push(source);
+    }
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name) || a.scope.localeCompare(b.scope));
+}
+
+export interface ParsedSkillFile {
+  name: string;
+  description: string;
+  body: string;
+}
+
+const unquote = (v: string) => v.trim().replace(/^(["'])(.*)\1$/, "$2").trim();
+
+/** Parse a dropped .md file: optional `---` frontmatter with name:/description:, else derive from filename/first line. */
+export function parseSkillFile(filename: string, text: string): ParsedSkillFile {
+  const src = text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+  const fm: Record<string, string> = {};
+  let body = src;
+  const m = /^---[ \t]*\n([\s\S]*?)\n---[ \t]*(?:\n|$)/.exec(src);
+  if (m) {
+    body = src.slice(m[0].length);
+    for (const line of (m[1] ?? "").split("\n")) {
+      const kv = /^([A-Za-z_-]+)\s*:\s*(.*)$/.exec(line);
+      if (kv) fm[(kv[1] ?? "").toLowerCase()] = unquote(kv[2] ?? "");
+    }
+  }
+  const base = filename.replace(/^.*[\\/]/, "").replace(/\.[^.]+$/, "");
+  const name = fm.name ? slugifySkill(fm.name) : slugifySkill(base);
+  const firstLine = body
+    .split("\n")
+    .map((l) => l.trim())
+    .find((l) => l && !l.startsWith("#"));
+  const description = fm.description || firstLine || "Imported skill";
+  return { name, description, body: body.replace(/^\n+/, "") };
+}

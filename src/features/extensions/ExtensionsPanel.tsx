@@ -1,12 +1,12 @@
 import { motion } from "motion/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fadeVariants, sheetVariants } from "../../lib/motion";
 import { ipc } from "../../lib/ipc";
 import { ask, useDialogStore } from "../../lib/dialog";
 import type { AddMcpServer, ExtCli, ExtScope, McpServer, McpTransport, Skill } from "../../lib/types";
 import { useBoard } from "../../store/board";
 import { profilesFor } from "../settings/profiles";
-import { buildMcpServer, mcpTarget, slugifySkill, validateSkillForm } from "./logic";
+import { buildMcpServer, mcpTarget, mergeSkills, parseSkillFile, slugifySkill, sourceKey, validateSkillForm, type MergedSkill, type ParsedSkillFile, type SkillSource } from "./logic";
 import "../settings/settings.css";
 
 type Tab = "skills" | "mcp";
@@ -26,10 +26,7 @@ export function ExtensionsPanel({ tab: initialTab, onClose }: { tab: Tab; onClos
   const settings = useBoard((s) => s.settings);
   const resolvedCwd = useBoard((s) => s.resolvedCwd);
   const cwd = settings.defaultCwd || resolvedCwd || null;
-  const accounts = useMemo(
-    () => profilesFor({ kind: cli === "claude" ? "claudeCode" : "codex" }, settings.profiles ?? []),
-    [cli, settings.profiles],
-  );
+  const accounts = useMemo(() => profilesFor({ kind: cli === "claude" ? "claudeCode" : "codex" }, settings.profiles ?? []), [cli, settings.profiles]);
 
   useEffect(() => setTab(initialTab), [initialTab]);
   useEffect(() => {
@@ -43,15 +40,8 @@ export function ExtensionsPanel({ tab: initialTab, onClose }: { tab: Tab; onClos
   const prof = profile && accounts.some((p) => p.id === profile) ? profile : "";
 
   return (
-    <motion.div
-      className="sheet-backdrop"
-      variants={fadeVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <motion.aside variants={sheetVariants} className="panel sheet" role="dialog" aria-modal="true" aria-label="Skills and MCP" style={{ width: 520 }}>
+    <motion.div className="sheet-backdrop" variants={fadeVariants} initial="initial" animate="animate" exit="exit" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <motion.aside variants={sheetVariants} className="panel sheet relative" role="dialog" aria-modal="true" aria-label="Skills and MCP" style={{ width: 520 }}>
         <header className="sheet-head">
           <h2>Skills &amp; MCP</h2>
           <button className="btn ghost icon" onClick={onClose} aria-label="Close skills and MCP" title="Close (Esc)">
@@ -69,9 +59,7 @@ export function ExtensionsPanel({ tab: initialTab, onClose }: { tab: Tab; onClos
               aria-selected={tab === t}
               onClick={() => setTab(t)}
               className={`rounded-full px-3.5 py-1 text-[12.5px] font-medium transition ${
-                tab === t
-                  ? "bg-surface-3 font-semibold text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong)]"
-                  : "text-ink-3 hover:bg-surface-2 hover:text-ink"
+                tab === t ? "bg-surface-3 font-semibold text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong)]" : "text-ink-3 hover:bg-surface-2 hover:text-ink"
               }`}
             >
               {t === "skills" ? "Skills" : "MCP servers"}
@@ -80,21 +68,25 @@ export function ExtensionsPanel({ tab: initialTab, onClose }: { tab: Tab; onClos
         </div>
 
         <div className="flex flex-wrap items-center gap-3 border-b border-line/70 px-5 py-3">
-          <div className="seg" role="radiogroup" aria-label="CLI">
-            {(["claude", "codex"] as const).map((c) => (
-              <button key={c} role="radio" aria-checked={cli === c} className={cli === c ? "on" : ""} onClick={() => setCli(c)}>
-                {c === "claude" ? "Claude Code" : "Codex"}
-              </button>
-            ))}
-          </div>
-          <select className="input h-8 max-w-[150px] text-[12px]" aria-label="Account" value={prof} onChange={(e) => setProfile(e.target.value)}>
-            <option value="">Default login</option>
-            {accounts.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          {tab === "mcp" && (
+            <>
+              <div className="seg" role="radiogroup" aria-label="CLI">
+                {(["claude", "codex"] as const).map((c) => (
+                  <button key={c} role="radio" aria-checked={cli === c} className={cli === c ? "on" : ""} onClick={() => setCli(c)}>
+                    {c === "claude" ? "Claude Code" : "Codex"}
+                  </button>
+                ))}
+              </div>
+              <select className="input h-8 max-w-[150px] text-[12px]" aria-label="Account" value={prof} onChange={(e) => setProfile(e.target.value)}>
+                <option value="">Default login</option>
+                {accounts.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
           <div className="seg ml-auto" role="radiogroup" aria-label="Scope filter">
             {(["all", "user", "project"] as const).map((s) => (
               <button key={s} role="radio" aria-checked={scopeFilter === s} className={scopeFilter === s ? "on" : ""} onClick={() => setScopeFilter(s)}>
@@ -109,13 +101,7 @@ export function ExtensionsPanel({ tab: initialTab, onClose }: { tab: Tab; onClos
           </div>
         )}
 
-        <div className="sheet-body">
-          {tab === "skills" ? (
-            <SkillsTab cli={cli} profile={prof || null} cwd={cwd} scopeFilter={scopeFilter} />
-          ) : (
-            <McpTab cli={cli} profile={prof || null} cwd={cwd} scopeFilter={scopeFilter} />
-          )}
-        </div>
+        <div className="sheet-body">{tab === "skills" ? <SkillsTab cwd={cwd} scopeFilter={scopeFilter} /> : <McpTab cli={cli} profile={prof || null} cwd={cwd} scopeFilter={scopeFilter} />}</div>
       </motion.aside>
     </motion.div>
   );
@@ -132,77 +118,236 @@ function Empty({ children }: { children: string }) {
   return <p className="help py-6 text-center">{children}</p>;
 }
 
-function SkillsTab({ cli, profile, cwd, scopeFilter }: TabProps) {
-  const [items, setItems] = useState<Skill[] | null>(null);
+const CLI_LABEL: Record<ExtCli, string> = {
+  claude: "Claude Code",
+  codex: "Codex",
+};
+
+function useSkillSources(): SkillSource[] {
+  const profiles = useBoard((st) => st.settings.profiles);
+  return useMemo(
+    () => [
+      { cli: "claude" as const, profile: null, label: CLI_LABEL.claude },
+      { cli: "codex" as const, profile: null, label: CLI_LABEL.codex },
+      ...(profiles ?? []).map((p) => ({
+        cli: p.cli,
+        profile: p.id,
+        label: p.name,
+      })),
+    ],
+    [profiles],
+  );
+}
+
+function SkillsTab({ cwd, scopeFilter }: { cwd: string | null; scopeFilter: ScopeFilter }) {
+  const sources = useSkillSources();
+  const [items, setItems] = useState<MergedSkill[] | null>(null);
   const [error, setError] = useState("");
+  const [status, setStatus] = useState<string[]>([]);
   const [q, setQ] = useState("");
   const [adding, setAdding] = useState(false);
+  const [installTo, setInstallTo] = useState<string[]>([sourceKey({ cli: "claude", profile: null })]);
+  const [dragging, setDragging] = useState(false);
+  const rootRef = useRef<HTMLElement>(null);
+  const targets = sources.filter((x) => installTo.includes(sourceKey(x)));
 
   const load = useCallback(() => {
-    setError("");
-    ipc
-      .listSkills(cli, profile, cwd)
-      .then(setItems)
-      .catch((e) => {
-        setItems([]);
-        setError(errText(e));
+    Promise.allSettled(sources.map((source) => ipc.listSkills(source.cli, source.profile, cwd))).then((rs) => {
+      const ok: { source: SkillSource; skills: Skill[] }[] = [];
+      const errs: string[] = [];
+      rs.forEach((r, i) => {
+        const source = sources[i];
+        if (!source) return;
+        if (r.status === "fulfilled") ok.push({ source, skills: r.value });
+        else errs.push(`${source.label}: ${errText(r.reason)}`);
       });
-  }, [cli, profile, cwd]);
+      setItems(mergeSkills(ok));
+      setError(errs.join("\n"));
+    });
+  }, [sources, cwd]);
   useEffect(() => {
     setItems(null);
     load();
   }, [load]);
 
-  const shown = (items ?? []).filter(
-    (s) =>
-      (scopeFilter === "all" || s.scope === scopeFilter) &&
-      `${s.name} ${s.description}`.toLowerCase().includes(q.trim().toLowerCase()),
+  const install = useCallback(
+    async (files: { filename: string; parsed: ParsedSkillFile }[], to: SkillSource[]) => {
+      const lines: string[] = [];
+      for (const f of files) {
+        const bad = validateSkillForm(f.parsed);
+        if (bad) {
+          lines.push(`✕ ${f.filename}: ${bad}`);
+          continue;
+        }
+        const done: string[] = [];
+        const failed: string[] = [];
+        for (const t of to) {
+          try {
+            await ipc.createSkill(t.cli, t.profile, cwd, "user", f.parsed.name, f.parsed.description.trim(), f.parsed.body);
+            done.push(t.label);
+          } catch (e) {
+            failed.push(`${t.label} (${errText(e)})`);
+          }
+        }
+        if (done.length) lines.push(`✓ ${f.filename} → ${f.parsed.name} installed to ${done.join(", ")}`);
+        if (failed.length) lines.push(`✕ ${f.filename} → ${f.parsed.name} failed: ${failed.join("; ")}`);
+      }
+      return lines;
+    },
+    [cwd],
   );
 
-  const remove = async (s: Skill) => {
-    if (!(await ask(`Delete skill "${s.name}"? Its folder will be removed from disk.`, { title: "Delete skill", kind: "danger", confirmText: "Delete" }))) return;
-    try {
-      await ipc.deleteSkill(cli, profile, cwd, s.scope, s.name);
-      load();
-    } catch (e) {
-      setError(errText(e));
+  const handleDrop = useCallback(
+    async (list: File[]) => {
+      const lines: string[] = [];
+      const md = list.filter((f) => /\.md$/i.test(f.name));
+      for (const f of list) if (!/\.md$/i.test(f.name)) lines.push(`– ${f.name}: ignored (only .md files are supported)`);
+      if (md.length) {
+        if (targets.length === 0) {
+          lines.push("Pick at least one 'Install to' target (open New skill) before dropping files.");
+        } else {
+          const parsed = await Promise.all(
+            md.map(async (f) => ({
+              filename: f.name,
+              parsed: parseSkillFile(f.name, await f.text()),
+            })),
+          );
+          const ok = await ask(
+            `Install ${parsed.length} skill${parsed.length === 1 ? "" : "s"} (${parsed.map((p) => p.parsed.name || p.filename).join(", ")}) to ${targets.map((t) => t.label).join(", ")}?`,
+            {
+              title: "Install skills",
+              confirmText: "Install",
+            },
+          );
+          if (ok) {
+            lines.push(...(await install(parsed, targets)));
+            load();
+          }
+        }
+      }
+      setStatus(lines);
+    },
+    [targets, install, load],
+  );
+
+  // Drag-and-drop anywhere on the panel (the dialog element), not just on the list.
+  const dropRef = useRef(handleDrop);
+  dropRef.current = handleDrop;
+  useEffect(() => {
+    const host = rootRef.current?.closest<HTMLElement>('[role="dialog"]');
+    if (!host) return;
+    let depth = 0;
+    const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
+    const enter = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth++;
+      setDragging(true);
+    };
+    const over = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    };
+    const leave = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) setDragging(false);
+    };
+    const drop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth = 0;
+      setDragging(false);
+      void dropRef.current(Array.from(e.dataTransfer?.files ?? []));
+    };
+    host.addEventListener("dragenter", enter);
+    host.addEventListener("dragover", over);
+    host.addEventListener("dragleave", leave);
+    host.addEventListener("drop", drop);
+    return () => {
+      host.removeEventListener("dragenter", enter);
+      host.removeEventListener("dragover", over);
+      host.removeEventListener("dragleave", leave);
+      host.removeEventListener("drop", drop);
+    };
+  }, []);
+
+  const shown = (items ?? []).filter(
+    (s) => (scopeFilter === "all" || s.scope === scopeFilter) && `${s.name} ${s.description} ${s.sources.map((x) => x.label).join(" ")}`.toLowerCase().includes(q.trim().toLowerCase()),
+  );
+
+  const remove = async (s: MergedSkill) => {
+    const where = s.sources.map((x) => x.label).join(", ");
+    if (!(await ask(`Delete skill "${s.name}"? Its folder will be removed from disk in: ${where}.`, { title: "Delete skill", kind: "danger", confirmText: "Delete" }))) return;
+    const errs: string[] = [];
+    for (const src of s.sources) {
+      try {
+        await ipc.deleteSkill(src.cli, src.profile, cwd, s.scope, s.name);
+      } catch (e) {
+        errs.push(`${src.label}: ${errText(e)}`);
+      }
     }
+    load();
+    if (errs.length) setError(errs.join("\n"));
   };
 
   return (
-    <section className="set-section">
+    <section className="set-section" ref={rootRef} aria-label="Skills list">
+      {dragging && (
+        <div
+          className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[inherit] border-2 border-dashed border-accent bg-surface/85 text-[14px] font-semibold text-ink"
+          data-testid="skill-drop-overlay"
+          role="status"
+        >
+          Drop SKILL.md / .md files to install
+        </div>
+      )}
       <div className="row">
         <input className="input grow" placeholder="Search skills…" aria-label="Search skills" value={q} onChange={(e) => setQ(e.target.value)} />
         <button className="btn primary" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
           New skill
         </button>
       </div>
+      <InstallTo sources={sources} value={installTo} onChange={setInstallTo} />
       {adding && (
         <NewSkillForm
-          cli={cli}
-          profile={profile}
+          targets={targets}
           cwd={cwd}
-          onDone={() => {
+          onDone={(lines) => {
             setAdding(false);
+            setStatus(lines);
             load();
           }}
         />
       )}
+      {status.length > 0 && (
+        <div className="help" role="status" aria-label="Install result" data-testid="skill-status">
+          {status.map((l, i) => (
+            <p key={i} className={`m-0 ${l.startsWith("✕") ? "text-danger" : ""}`}>
+              {l}
+            </p>
+          ))}
+        </div>
+      )}
       {error && (
-        <p className="help text-danger" role="alert">
+        <p className="help whitespace-pre-wrap text-danger" role="alert">
           {error}
         </p>
       )}
       {items === null ? (
         <Empty>Loading…</Empty>
       ) : shown.length === 0 ? (
-        <Empty>{items.length === 0 ? "No skills yet." : "No skills match."}</Empty>
+        <Empty>{items.length === 0 ? "No skills yet. Drop a SKILL.md here to install one." : "No skills match."}</Empty>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-2.5 p-0" aria-label="Skills">
           {shown.map((s) => (
-            <li key={`${s.scope}:${s.kind}:${s.name}`} className="agent-card" data-testid="skill-card">
+            <li key={`${s.scope}:${s.kind}:${s.name}:${s.description}`} className="agent-card" data-testid="skill-card">
               <div className="agent-card-head">
                 <strong className="min-w-0 flex-1 truncate">{s.name}</strong>
+                {s.sources.map((x) => (
+                  <Badge key={sourceKey(x)}>{x.label}</Badge>
+                ))}
                 <Badge tone={s.scope === "project" ? "warn" : undefined}>{s.kind === "prompt" ? "prompt" : s.scope}</Badge>
                 {s.kind === "skill" && (
                   <button className="btn ghost sm !ml-0" aria-label={`Delete ${s.name}`} onClick={() => void remove(s)}>
@@ -222,7 +367,33 @@ function SkillsTab({ cli, profile, cwd, scopeFilter }: TabProps) {
   );
 }
 
-function NewSkillForm({ cli, profile, cwd, onDone }: { cli: ExtCli; profile: string | null; cwd: string | null; onDone: () => void }) {
+function InstallTo({ sources, value, onChange }: { sources: SkillSource[]; value: string[]; onChange: (v: string[]) => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Install to">
+      <span className="help m-0">Install to:</span>
+      {sources.map((x) => {
+        const k = sourceKey(x);
+        const on = value.includes(k);
+        return (
+          <button
+            key={k}
+            type="button"
+            role="checkbox"
+            aria-checked={on}
+            aria-label={`Install to ${x.label}`}
+            className={`chip ${on ? "ok" : ""}`}
+            onClick={() => onChange(on ? value.filter((v) => v !== k) : [...value, k])}
+          >
+            {on ? "✓ " : ""}
+            {x.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function NewSkillForm({ targets, cwd, onDone }: { targets: SkillSource[]; cwd: string | null; onDone: (lines: string[]) => void }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [body, setBody] = useState("");
@@ -233,14 +404,24 @@ function NewSkillForm({ cli, profile, cwd, onDone }: { cli: ExtCli; profile: str
   const submit = async () => {
     const bad = validateSkillForm({ name, description, body });
     if (bad) return setErr(bad);
+    if (targets.length === 0) return setErr("Pick at least one 'Install to' target");
     setBusy(true);
-    try {
-      await ipc.createSkill(cli, profile, cwd, scope, name, description.trim(), body);
-      onDone();
-    } catch (e) {
-      setErr(errText(e));
-      setBusy(false);
+    const done: string[] = [];
+    const failed: string[] = [];
+    for (const t of targets) {
+      try {
+        await ipc.createSkill(t.cli, t.profile, cwd, scope, name, description.trim(), body);
+        done.push(t.label);
+      } catch (e) {
+        failed.push(`${t.label}: ${errText(e)}`);
+      }
     }
+    if (failed.length) {
+      setErr(failed.join("\n"));
+      setBusy(false);
+      if (done.length === 0) return;
+    }
+    if (!failed.length) onDone([`✓ ${name} installed to ${done.join(", ")}`]);
   };
 
   return (
@@ -254,7 +435,15 @@ function NewSkillForm({ cli, profile, cwd, onDone }: { cli: ExtCli; profile: str
     >
       <div className="field">
         <label htmlFor="sk-name">Name</label>
-        <input id="sk-name" className="input" value={name} placeholder="my-skill" spellCheck={false} onChange={(e) => setName(e.target.value)} onBlur={() => name && setName(slugifySkill(name) || name)} />
+        <input
+          id="sk-name"
+          className="input"
+          value={name}
+          placeholder="my-skill"
+          spellCheck={false}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => name && setName(slugifySkill(name) || name)}
+        />
       </div>
       <div className="field">
         <label htmlFor="sk-desc">Description</label>
@@ -278,7 +467,7 @@ function NewSkillForm({ cli, profile, cwd, onDone }: { cli: ExtCli; profile: str
         </button>
       </div>
       {err && (
-        <p className="help text-danger" role="alert">
+        <p className="help whitespace-pre-wrap text-danger" role="alert">
           {err}
         </p>
       )}
@@ -307,14 +496,17 @@ function McpTab({ cli, profile, cwd, scopeFilter }: TabProps) {
     load();
   }, [load]);
 
-  const shown = (items ?? []).filter(
-    (s) =>
-      (scopeFilter === "all" || s.scope === scopeFilter) &&
-      `${s.name} ${mcpTarget(s)}`.toLowerCase().includes(q.trim().toLowerCase()),
-  );
+  const shown = (items ?? []).filter((s) => (scopeFilter === "all" || s.scope === scopeFilter) && `${s.name} ${mcpTarget(s)}`.toLowerCase().includes(q.trim().toLowerCase()));
 
   const remove = async (s: McpServer) => {
-    if (!(await ask(`Remove MCP server "${s.name}" (${s.scope})? The ${cli === "claude" ? "claude" : "codex"} CLI will update its config.`, { title: "Remove MCP server", kind: "danger", confirmText: "Remove" }))) return;
+    if (
+      !(await ask(`Remove MCP server "${s.name}" (${s.scope})? The ${cli === "claude" ? "claude" : "codex"} CLI will update its config.`, {
+        title: "Remove MCP server",
+        kind: "danger",
+        confirmText: "Remove",
+      }))
+    )
+      return;
     setError("");
     try {
       await ipc.removeMcp(cli, profile, cwd, s.name, s.scope);
@@ -455,8 +647,23 @@ function AddServerForm({ cli, profile, cwd, onDone }: { cli: ExtCli; profile: st
         <label>Environment variables</label>
         {env.map((r, i) => (
           <div className="row" key={i}>
-            <input className="input narrow !w-[130px]" aria-label={`Env name ${i + 1}`} placeholder="KEY" value={r.key} spellCheck={false} onChange={(e) => setEnv(env.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)))} />
-            <input className="input grow" type="password" autoComplete="off" aria-label={`Env value ${i + 1}`} placeholder="value" value={r.value} onChange={(e) => setEnv(env.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} />
+            <input
+              className="input narrow !w-[130px]"
+              aria-label={`Env name ${i + 1}`}
+              placeholder="KEY"
+              value={r.key}
+              spellCheck={false}
+              onChange={(e) => setEnv(env.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)))}
+            />
+            <input
+              className="input grow"
+              type="password"
+              autoComplete="off"
+              aria-label={`Env value ${i + 1}`}
+              placeholder="value"
+              value={r.value}
+              onChange={(e) => setEnv(env.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))}
+            />
             <button type="button" className="btn ghost sm" aria-label={`Remove env ${i + 1}`} onClick={() => setEnv(env.filter((_, j) => j !== i))}>
               ✕
             </button>

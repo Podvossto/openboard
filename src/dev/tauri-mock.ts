@@ -220,6 +220,7 @@ w.__TAURI_INTERNALS__ = {
         return { board, recoveredFromBackup: null };
       case "save_board":
         board = args.board;
+        (window as unknown as { __savedBoard?: unknown }).__savedBoard = board;
         return null;
       case "load_settings":
         return { settings, resolvedCwd: "C:/Users/dev" };
