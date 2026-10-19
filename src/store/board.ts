@@ -145,10 +145,10 @@ interface BoardState {
   pulses: Record<string, number>;
   pulse: (id: string) => void;
   /** recent lead→worker sends / handoffs (drive animated edges) */
-  flashes: { from: string; to: string; kind: "lead" | "handoff"; at: number }[];
+  flashes: { from: string; to: string; kind: "lead" | "handoff" | "tile"; at: number }[];
   /** lead id → console ids it has sent work to (this session) */
   contacted: Record<string, string[]>;
-  flash: (from: string, to: string, kind: "lead" | "handoff") => void;
+  flash: (from: string, to: string, kind: "lead" | "handoff" | "tile") => void;
   /** node ids playing their exit animation */
   leaving: Record<string, true>;
   setLeaving: (id: string, on: boolean) => void;

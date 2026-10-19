@@ -69,3 +69,14 @@
 .flow-edge-dash { animation: edge-flow 0.9s linear infinite; }
 @keyframes edge-flow { to { stroke-dashoffset: -32; } }
 @media (prefers-reduced-motion: reduce) { .flow-edge-dash { animation: none; } }
+
+/* agent → tile link handle: a small knob on the right edge, shown on hover / while connecting */
+.react-flow__handle.console-link-handle {
+  width: 14px; height: 14px; right: -7px; border-radius: 999px;
+  border: 2px solid var(--color-surface); background: var(--color-accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 60%, transparent), 0 0 12px -2px var(--color-accent);
+  opacity: 0; transition: opacity 150ms, transform 150ms; cursor: crosshair;
+}
+.console:hover .react-flow__handle.console-link-handle,
+.react-flow.is-linking .react-flow__handle.console-link-handle { opacity: 1; }
+.react-flow__handle.console-link-handle:hover { transform: translateY(-50%) scale(1.25); }

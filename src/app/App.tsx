@@ -20,6 +20,7 @@ import { useAutosave } from "../features/board/useAutosave";
 import { resumeAll } from "../features/console/launch";
 import { ipc } from "../lib/ipc";
 import { useBoard } from "../store/board";
+import { useTileOps } from "../features/links/useTileOps";
 import { UpdatePrompt } from "../features/updater/UpdatePrompt";
 import { useUpdaterBoot } from "../features/updater/store";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -63,6 +64,7 @@ export function App() {
   useBoardRuntime();
   useAutosave();
   useLoops();
+  useTileOps();
   useUpdaterBoot();
   useSessionUsagePoller();
   useOrchestrator();

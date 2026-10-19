@@ -2,7 +2,17 @@
 // the Dock's "Resume all" and the app-start auto-resume all end up here.
 import { ipc } from "../../lib/ipc";
 import { activeWorkspace, useBoard } from "../../store/board";
+
 import { canResume } from "./helpers";
+
+/** (kind, title) of the agent-linkable tiles this console is linked to (passed to spawn). */
+function linkedTiles(node: { links?: string[] }): [string, string][] {
+  const tiles = useBoard.getState().board.workspaces.flatMap((w) => w.tiles ?? []);
+  return (node.links ?? [])
+    .map((id) => tiles.find((t) => t.id === id))
+    .filter((t): t is NonNullable<typeof t> => !!t && ["kanban", "checklist", "calendar"].includes(t.kind))
+    .map((t) => [t.kind, t.title]);
+}
 
 /** Consoles with a launch in flight — guards double-starts from overlay, dock and menus. */
 export const launchInflight = new Set<string>();
@@ -51,6 +61,7 @@ export async function launchConsole(id: string, resume: boolean, opts: LaunchOpt
       profile: node.profile,
       lead: node.lead,
       model: node.model,
+      links: linkedTiles(node),
     });
     // PTY is up; mounted TerminalViews attach themselves when they notice
     st.setRuntime(id, { running: true });

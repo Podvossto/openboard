@@ -15,10 +15,123 @@ pub trait Tools: Send + Sync {
     fn send(&self, caller: &str, target: &str, message: &str) -> Result<String, String>;
     fn read(&self, caller: &str, target: &str, chars: usize) -> Result<String, String>;
     fn spawn(&self, caller: &str, agent: &str, title: &str, task: &str) -> Result<String, String>;
+    /// Orchestrator lead? Only leads get the console tools.
+    fn is_lead(&self, _caller: &str) -> bool {
+        true
+    }
+    /// Kinds of tiles linked to `caller` ("kanban" | "checklist" | "calendar").
+    fn linked_kinds(&self, _caller: &str) -> Vec<String> {
+        Vec::new()
+    }
+    /// Run a tile tool (see [`TILE_TOOLS`]) against a tile linked to `caller`.
+    fn tile_op(&self, _caller: &str, _tool: &str, _args: &Value) -> Result<String, String> {
+        Err("no tiles are linked to this console".into())
+    }
 }
 
-fn tool_defs() -> Value {
-    json!([
+/// Tile tools: (name, tile kind or "" for any, description, extra properties, required).
+type TileTool = (
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static [&'static str],
+);
+
+/// Tools an agent gets for the board tiles linked to its console.
+pub const TILE_TOOLS: &[TileTool] = &[
+    ("list_linked_tiles", "", "List the board tiles (kanban / checklist / calendar) linked to your console: title, kind and id. Call this first.", "{}", &[]),
+    ("kanban_list", "kanban", "Show a kanban board: columns and their cards (with ids).", r#"{"tile":{"type":"string","description":"Tile title or id"}}"#, &["tile"]),
+    ("kanban_add_card", "kanban", "Add a card to a kanban column (default: the first column).", r#"{"tile":{"type":"string"},"text":{"type":"string"},"column":{"type":"string","description":"Column name or id (optional)"}}"#, &["tile", "text"]),
+    ("kanban_move_card", "kanban", "Move a card to another column (e.g. to Doing / Done).", r#"{"tile":{"type":"string"},"card":{"type":"string","description":"Card id or exact text"},"column":{"type":"string"}}"#, &["tile", "card", "column"]),
+    ("kanban_update_card", "kanban", "Change a card's text.", r#"{"tile":{"type":"string"},"card":{"type":"string"},"text":{"type":"string"}}"#, &["tile", "card", "text"]),
+    ("kanban_delete_card", "kanban", "Delete a card.", r#"{"tile":{"type":"string"},"card":{"type":"string"}}"#, &["tile", "card"]),
+    ("checklist_list", "checklist", "Show a checklist's items (with ids and done state).", r#"{"tile":{"type":"string"}}"#, &["tile"]),
+    ("checklist_add", "checklist", "Add an item to a checklist.", r#"{"tile":{"type":"string"},"text":{"type":"string"}}"#, &["tile", "text"]),
+    ("checklist_toggle", "checklist", "Tick or untick an item (done defaults to true).", r#"{"tile":{"type":"string"},"item":{"type":"string","description":"Item id or exact text"},"done":{"type":"boolean"}}"#, &["tile", "item"]),
+    ("checklist_delete", "checklist", "Delete a checklist item.", r#"{"tile":{"type":"string"},"item":{"type":"string"}}"#, &["tile", "item"]),
+    ("calendar_list", "calendar", "List calendar events, optionally between two dates (YYYY-MM-DD).", r#"{"tile":{"type":"string"},"from":{"type":"string"},"to":{"type":"string"}}"#, &["tile"]),
+    ("calendar_add_event", "calendar", "Add an event (date YYYY-MM-DD, optional time HH:MM).", r#"{"tile":{"type":"string"},"title":{"type":"string"},"date":{"type":"string"},"time":{"type":"string"}}"#, &["tile", "title", "date"]),
+    ("calendar_update_event", "calendar", "Change an event's title, date or time.", r#"{"tile":{"type":"string"},"event":{"type":"string","description":"Event id or exact title"},"title":{"type":"string"},"date":{"type":"string"},"time":{"type":"string"}}"#, &["tile", "event"]),
+    ("calendar_delete_event", "calendar", "Delete an event.", r#"{"tile":{"type":"string"},"event":{"type":"string"}}"#, &["tile", "event"]),
+];
+
+const LEAD_TOOLS: &[&str] = &[
+    "list_consoles",
+    "send_to_console",
+    "read_console",
+    "spawn_console",
+];
+
+/// Tile tool names usable with these linked kinds (always includes list_linked_tiles).
+pub fn tile_tool_names(kinds: &[String]) -> Vec<&'static str> {
+    if kinds.is_empty() {
+        return Vec::new();
+    }
+    TILE_TOOLS
+        .iter()
+        .filter(|t| t.1.is_empty() || kinds.iter().any(|k| k == t.1))
+        .map(|t| t.0)
+        .collect()
+}
+
+fn tile_defs(kinds: &[String]) -> Vec<Value> {
+    let names = tile_tool_names(kinds);
+    TILE_TOOLS
+        .iter()
+        .filter(|t| names.contains(&t.0))
+        .map(|(name, _, desc, props, req)| {
+            let props: Value = serde_json::from_str(props).expect("static schema");
+            json!({"name": name, "description": desc, "inputSchema": {
+                "type": "object", "properties": props, "required": req, "additionalProperties": false
+            }})
+        })
+        .collect()
+}
+
+/// `--allowedTools` value for a console (MCP tools are named `mcp__agent-board__<tool>`).
+pub fn allowed_tools(lead: bool, kinds: &[String]) -> String {
+    let lead_names = if lead { LEAD_TOOLS } else { &[] };
+    lead_names
+        .iter()
+        .copied()
+        .chain(tile_tool_names(kinds))
+        .map(|n| format!("mcp__agent-board__{n}"))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+/// System-prompt addition telling an agent it lives on Agent Board and what it may touch.
+/// `tiles` = (kind, title). Empty when nothing is linked.
+pub fn tiles_prompt(tiles: &[(String, String)]) -> String {
+    if tiles.is_empty() {
+        return String::new();
+    }
+    let list = tiles
+        .iter()
+        .map(|(k, t)| format!("{k} \"{t}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "You are running inside Agent Board, a visual board of AI agent consoles. The user linked these board tiles to you: {list}. \
+When the user asks you to plan, track or schedule work (\"add a card\", \"move it to Done\", \"tick that off\", \"put it on the calendar\"), \
+use the agent-board MCP tools (list_linked_tiles first, then kanban_* / checklist_* / calendar_*) — the board updates live for the user. \
+Keep cards short; move cards as your work progresses."
+    )
+}
+
+fn tool_defs(tools: &dyn Tools, caller: &str) -> Value {
+    let mut defs: Vec<Value> = if tools.is_lead(caller) {
+        lead_defs()
+    } else {
+        Vec::new()
+    };
+    defs.extend(tile_defs(&tools.linked_kinds(caller)));
+    Value::Array(defs)
+}
+
+fn lead_defs() -> Vec<Value> {
+    let Value::Array(v) = json!([
         {
             "name": "list_consoles",
             "description": "List every console on the Agent Board: title, agent (claude/codex/shell/...), status (working, resting, needsYou, exited), group, and whether it is you. Call this first to see who can take work.",
@@ -49,7 +162,10 @@ fn tool_defs() -> Value {
                 "task": {"type": "string", "description": "Optional first message once it is ready"}
             }, "required": ["agent", "title"], "additionalProperties": false}
         }
-    ])
+    ]) else {
+        unreachable!()
+    };
+    v
 }
 
 fn text(s: impl Into<String>, is_error: bool) -> Value {
@@ -64,6 +180,32 @@ fn str_arg<'a>(a: &'a Value, k: &str) -> Result<&'a str, String> {
 }
 
 fn call(tools: &dyn Tools, caller: &str, name: &str, args: &Value) -> Value {
+    if LEAD_TOOLS.contains(&name) && !tools.is_lead(caller) {
+        return text(
+            format!("`{name}` is only available to orchestrator leads"),
+            true,
+        );
+    }
+    if let Some(t) = TILE_TOOLS.iter().find(|t| t.0 == name) {
+        if !tile_tool_names(&tools.linked_kinds(caller)).contains(&t.0) {
+            return text(
+                format!(
+                    "no {} tile is linked to this console",
+                    if t.1.is_empty() { "board" } else { t.1 }
+                ),
+                true,
+            );
+        }
+        for req in t.4 {
+            if let Err(e) = str_arg(args, req) {
+                return text(e, true);
+            }
+        }
+        return match tools.tile_op(caller, name, args) {
+            Ok(s) => text(s, false),
+            Err(e) => text(e, true),
+        };
+    }
     let r = match name {
         "list_consoles" => {
             Ok(serde_json::to_string_pretty(&tools.list(caller)).unwrap_or_default())
@@ -109,10 +251,10 @@ pub fn handle(tools: &dyn Tools, caller: &str, req: &Value) -> Option<Value> {
             "protocolVersion": req.pointer("/params/protocolVersion").and_then(|v| v.as_str()).unwrap_or(PROTOCOL_VERSION),
             "capabilities": {"tools": {"listChanged": false}},
             "serverInfo": {"name": "agent-board", "version": env!("CARGO_PKG_VERSION")},
-            "instructions": "You can coordinate the other consoles on this Agent Board. Use list_consoles, then send_to_console to delegate, read_console to check results."
+            "instructions": "Agent Board tools. Leads: list_consoles, send_to_console, read_console, spawn_console. Linked tiles: list_linked_tiles, then kanban_* / checklist_* / calendar_*."
         })),
         "ping" => Ok(json!({})),
-        "tools/list" => Ok(json!({"tools": tool_defs()})),
+        "tools/list" => Ok(json!({"tools": tool_defs(tools, caller)})),
         "tools/call" => {
             let name = req
                 .pointer("/params/name")
@@ -300,5 +442,127 @@ mod tests {
         assert_eq!(find_target("@api", &roster), Some("id1"));
         assert_eq!(find_target("id2", &roster), Some("id2"));
         assert_eq!(find_target("nope", &roster), None);
+    }
+
+    struct Linked;
+    impl Tools for Linked {
+        fn list(&self, _: &str) -> Value {
+            json!([])
+        }
+        fn send(&self, _: &str, _: &str, _: &str) -> Result<String, String> {
+            Ok("sent".into())
+        }
+        fn read(&self, _: &str, _: &str, _: usize) -> Result<String, String> {
+            Ok(String::new())
+        }
+        fn spawn(&self, _: &str, _: &str, _: &str, _: &str) -> Result<String, String> {
+            Ok(String::new())
+        }
+        fn is_lead(&self, c: &str) -> bool {
+            c == "lead"
+        }
+        fn linked_kinds(&self, c: &str) -> Vec<String> {
+            if c == "worker" {
+                vec!["kanban".into()]
+            } else {
+                vec![]
+            }
+        }
+        fn tile_op(&self, c: &str, tool: &str, a: &Value) -> Result<String, String> {
+            Ok(format!("{c}:{tool}:{}", a["text"].as_str().unwrap_or("")))
+        }
+    }
+
+    fn rpc2(t: &dyn Tools, caller: &str, method: &str, params: Value) -> Value {
+        handle(
+            t,
+            caller,
+            &json!({"jsonrpc":"2.0","id":1,"method":method,"params":params}),
+        )
+        .unwrap()
+    }
+    fn names(v: &Value) -> Vec<String> {
+        v["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn tools_list_follows_role_and_links() {
+        let w = names(&rpc2(&Linked, "worker", "tools/list", json!({})));
+        assert!(w.contains(&"kanban_add_card".to_string()));
+        assert!(w.contains(&"list_linked_tiles".to_string()));
+        assert!(!w
+            .iter()
+            .any(|n| n.starts_with("calendar_") || n == "send_to_console"));
+        let l = names(&rpc2(&Linked, "lead", "tools/list", json!({})));
+        assert!(
+            l.contains(&"send_to_console".to_string())
+                && !l.iter().any(|n| n.starts_with("kanban"))
+        );
+        assert!(names(&rpc2(&Linked, "other", "tools/list", json!({}))).is_empty());
+    }
+
+    #[test]
+    fn tile_calls_are_gated_and_validated() {
+        let ok = rpc2(
+            &Linked,
+            "worker",
+            "tools/call",
+            json!({"name":"kanban_add_card","arguments":{"tile":"Sprint","text":"fix login"}}),
+        );
+        assert_eq!(
+            ok["result"]["content"][0]["text"],
+            "worker:kanban_add_card:fix login"
+        );
+        assert_eq!(ok["result"]["isError"], false);
+        let missing = rpc2(
+            &Linked,
+            "worker",
+            "tools/call",
+            json!({"name":"kanban_add_card","arguments":{"tile":"Sprint"}}),
+        );
+        assert_eq!(missing["result"]["isError"], true);
+        let wrong_kind = rpc2(
+            &Linked,
+            "worker",
+            "tools/call",
+            json!({"name":"calendar_add_event","arguments":{"tile":"x","title":"t","date":"2026-10-20"}}),
+        );
+        assert!(wrong_kind["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("no calendar tile"));
+        let not_lead = rpc2(
+            &Linked,
+            "worker",
+            "tools/call",
+            json!({"name":"send_to_console","arguments":{"target":"a","message":"b"}}),
+        );
+        assert!(not_lead["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("only available"));
+    }
+
+    #[test]
+    fn allowed_tools_and_prompt() {
+        assert_eq!(allowed_tools(false, &[]), "");
+        let a = allowed_tools(true, &["checklist".into()]);
+        assert!(a.starts_with("mcp__agent-board__list_consoles,"));
+        assert!(a.contains("mcp__agent-board__checklist_toggle") && !a.contains("kanban"));
+        assert!(tiles_prompt(&[]).is_empty());
+        let p = tiles_prompt(&[("kanban".into(), "Sprint".into())]);
+        assert!(p.contains("Agent Board") && p.contains("kanban \"Sprint\""));
+        // every static schema parses and lists its required args
+        for t in TILE_TOOLS {
+            let v: Value = serde_json::from_str(t.3).unwrap();
+            for r in t.4 {
+                assert!(v.get(r).is_some(), "{} missing {r}", t.0);
+            }
+        }
     }
 }

@@ -1,7 +1,8 @@
 //! Real MCP tools for lead consoles: roster comes from the UI (`sync_roster`), effects go
 //! through the PTY manager; spawning asks the UI (it owns board layout) via an event.
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{mpsc, Arc};
 use std::time::Duration;
 
 use board_core::mcp::{find_target, Tools};
@@ -21,12 +22,37 @@ pub struct RosterEntry {
     pub agent: String,
     #[serde(default)]
     pub group: Option<String>,
+    /// orchestrator lead (gets console tools)
+    #[serde(default)]
+    pub lead: bool,
+    /// tiles linked to this console: (id, kind, title)
+    #[serde(default)]
+    pub links: Vec<LinkedTile>,
 }
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkedTile {
+    pub id: String,
+    pub kind: String,
+    pub title: String,
+}
+
+/// A tile tool call waiting for the UI (which owns tile data) to apply it.
+pub type PendingOps = Mutex<HashMap<String, mpsc::Sender<Result<String, String>>>>;
 
 pub struct BoardTools {
     pub roster: Mutex<Vec<RosterEntry>>,
     pub pty: Arc<PtyManager<TauriEvents>>,
     pub app: AppHandle,
+    pub pending: PendingOps,
+}
+
+/// The UI's answer to a `tile://op` request.
+pub fn complete_op(tools: &BoardTools, op_id: &str, result: Result<String, String>) {
+    if let Some(tx) = tools.pending.lock().remove(op_id) {
+        let _ = tx.send(result);
+    }
 }
 
 impl BoardTools {
@@ -46,6 +72,10 @@ impl BoardTools {
         Ok(r.iter().find(|e| e.id == id).cloned().expect("resolved"))
     }
 
+    fn entry(&self, id: &str) -> Option<RosterEntry> {
+        self.roster.lock().iter().find(|e| e.id == id).cloned()
+    }
+
     fn status_str(&self, id: &str) -> String {
         match self.pty.status(id) {
             Some(s) => serde_json::to_value(s)
@@ -58,6 +88,69 @@ impl BoardTools {
 }
 
 impl Tools for BoardTools {
+    fn is_lead(&self, caller: &str) -> bool {
+        self.entry(caller).is_some_and(|e| e.lead)
+    }
+
+    fn linked_kinds(&self, caller: &str) -> Vec<String> {
+        let mut k: Vec<String> = self
+            .entry(caller)
+            .map(|e| e.links.into_iter().map(|l| l.kind).collect())
+            .unwrap_or_default();
+        k.sort();
+        k.dedup();
+        k
+    }
+
+    fn tile_op(&self, caller: &str, tool: &str, args: &Value) -> Result<String, String> {
+        let me = self.entry(caller).ok_or("unknown console")?;
+        if tool == "list_linked_tiles" {
+            return Ok(serde_json::to_string_pretty(&me.links).unwrap_or_default());
+        }
+        // resolve the tile among THIS console's links only (title or id, case-insensitive)
+        let want = args
+            .get("tile")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+        let kind = board_core::mcp::TILE_TOOLS
+            .iter()
+            .find(|t| t.0 == tool)
+            .map(|t| t.1)
+            .unwrap_or("");
+        let tile = me
+            .links
+            .iter()
+            .filter(|l| l.kind == kind)
+            .find(|l| l.id == want || l.title.eq_ignore_ascii_case(want))
+            .ok_or_else(|| {
+                format!(
+                    "no linked {kind} tile `{want}`. Linked: {}",
+                    me.links
+                        .iter()
+                        .filter(|l| l.kind == kind)
+                        .map(|l| l.title.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            })?
+            .clone();
+        let op_id = uuid::Uuid::new_v4().to_string();
+        let (tx, rx) = mpsc::channel();
+        self.pending.lock().insert(op_id.clone(), tx);
+        self.app
+            .emit(
+                "tile://op",
+                json!({ "opId": op_id, "from": caller, "tile": tile.id, "tool": tool, "args": args }),
+            )
+            .map_err(|e| e.to_string())?;
+        let r = rx
+            .recv_timeout(Duration::from_secs(10))
+            .unwrap_or_else(|_| Err("the board did not answer (is the app window open?)".into()));
+        self.pending.lock().remove(&op_id);
+        r
+    }
+
     fn list(&self, caller: &str) -> Value {
         let r = self.roster.lock().clone();
         json!(r

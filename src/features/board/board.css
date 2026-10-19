@@ -65,3 +65,8 @@
 
 /* hover dot glow (Board.tsx): fades in/out; never blocks the canvas */
 .board-dot-glow { pointer-events: none; transition: opacity 220ms ease; }
+
+/* tile end of an agent link: invisible unless a link drag is in progress */
+.react-flow__handle.tile-link-handle { width: 100%; height: 100%; left: 0; top: 0; transform: none; border: 0; border-radius: 18px; background: transparent; opacity: 0; }
+.react-flow.is-linking .react-flow__handle.tile-link-handle { opacity: 1; pointer-events: all; box-shadow: inset 0 0 0 2px var(--color-accent); background: color-mix(in srgb, var(--color-accent) 6%, transparent); }
+.react-flow:not(.is-linking) .react-flow__handle.tile-link-handle { pointer-events: none; }

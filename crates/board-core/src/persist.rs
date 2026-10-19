@@ -143,6 +143,7 @@ mod tests {
             section: None,
             agent_session: Some("s".into()),
             loop_cfg: None,
+            links: vec![],
             profile: None,
             lead: false,
             model: None,

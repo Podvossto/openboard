@@ -1,5 +1,5 @@
 import { memo, useRef, useState, useCallback, useEffect } from "react";
-import { NodeResizer, type NodeProps } from "@xyflow/react";
+import { Handle, NodeResizer, Position, type NodeProps } from "@xyflow/react";
 import { useBoard } from "../../store/board";
 import { motion, AnimatePresence } from "motion/react";
 import { nodeVariants, popVariants } from "../../lib/motion";
@@ -14,6 +14,7 @@ import { KanbanTile } from "./KanbanTile";
 import { WebTile } from "./WebTile";
 import { GitTile } from "./GitTile";
 import { CodeTile } from "./CodeTile";
+import { isLinkable } from "../links/tileOps";
 import { CalendarTile } from "./CalendarTile";
 
 const MIN: Record<Tile["kind"], [number, number]> = {
@@ -184,6 +185,7 @@ export const TileNodeView = memo(function TileNodeView({ data, selected }: NodeP
       }
       data-kind={t.kind}
     >
+      {isLinkable(t.kind) && <Handle id="link" type="target" position={Position.Left} className="tile-link-handle" isConnectableStart={false} />}
       <NodeResizer
         isVisible={selected}
         minWidth={minW}

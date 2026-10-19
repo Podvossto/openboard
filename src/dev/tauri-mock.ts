@@ -240,6 +240,9 @@ w.__TAURI_INTERNALS__ = {
             { id: "cursor", name: "Cursor CLI", program: "cursor-agent", install: "see cursor.com/cli", installed: false, installProgram: null, installArgs: [], installUrl: "https://cursor.com/cli" },
           ],
         };
+      case "tile_op_result":
+        ((window as unknown as { __tileResults?: unknown[] }).__tileResults ??= []).push(args);
+        return null;
       case "sync_roster":
         (window as unknown as { __roster?: unknown }).__roster = args.roster;
         return null;

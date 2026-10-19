@@ -32,6 +32,8 @@ export interface ConsoleNode {
   lead?: boolean;
   /** model override passed as --model (Claude / Codex); undefined = CLI default */
   model?: string;
+  /** tile ids linked to this console (agent ↔ tile tools) */
+  links?: string[];
 }
 
 export type LoopTrigger =

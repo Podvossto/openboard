@@ -25,6 +25,8 @@ import { InkToolbar } from "../ink/InkToolbar";
 import { TileNodeView } from "../tiles/TileNodeView";
 import { RadialMenu } from "./RadialMenu";
 import { SelectionBar } from "./SelectionBar";
+import { OrchestratorHud } from "../links/OrchestratorHud";
+import { linkConsole, linkValid, unlinkConsole } from "../links/linking";
 import { SelectionMode } from "@xyflow/react";
 import type { Section, Tile } from "../../lib/types";
 import "./board.css";
@@ -63,7 +65,7 @@ function WorkspaceCanvas() {
     const t = setTimeout(() => setNow(Date.now()), Math.max(0, last + 6050 - Date.now()));
     return () => clearTimeout(t);
   }, [flashes]);
-  const edges = useMemo(() => buildEdges(consoles, flashes, now, contacted), [consoles, flashes, contacted, now]);
+  const edges = useMemo(() => buildEdges(consoles, flashes, now, contacted, 6000, tiles), [consoles, flashes, contacted, now, tiles]);
   // viewport is only read on mount (defaultViewport) — later changes come from the canvas itself
   const [initialViewport] = useState(() => activeWorkspace(useBoard.getState().board).viewport);
   const [nodes, setNodes] = useState<AppNode[]>(() => reconcile(consoles, groups, [], tiles, sections));
@@ -82,6 +84,9 @@ function WorkspaceCanvas() {
   const sectionIds = useMemo(() => new Set(sections.map((s) => s.id)), [sections]);
 
   const [resizing, setResizing] = useState(false);
+  /** a console → tile link drag is in progress (enables the tiles' drop zones) */
+  const [linking, setLinking] = useState(false);
+  const linkedOnDrop = useRef(false);
   const onNodesChange = useCallback(
     (changes: NodeChange<AppNode>[]) => {
       const rz = changes.some((c) => c.type === "dimensions" && c.resizing);
@@ -158,13 +163,38 @@ function WorkspaceCanvas() {
     <div className="relative w-full h-full overflow-hidden" onPointerMove={onPointerMove} onPointerLeave={() => setMousePos(null)}>
 
       <ReactFlow
-        className={resizing ? "is-resizing" : undefined}
+        className={[resizing ? "is-resizing" : "", linking ? "is-linking" : ""].filter(Boolean).join(" ") || undefined}
         nodes={nodes}
         nodeTypes={nodeTypes}
         edges={edges}
         edgeTypes={edgeTypes}
         edgesFocusable={false}
-        nodesConnectable={false}
+        nodesConnectable={!inking}
+        connectionRadius={40}
+        connectionLineStyle={{ stroke: "#8ea2ff", strokeWidth: 2, strokeDasharray: "6 6" }}
+        isValidConnection={(c) => linkValid(c.source, c.target)}
+        onConnectStart={() => {
+          linkedOnDrop.current = false;
+          setLinking(true);
+        }}
+        onConnect={(c) => {
+          linkedOnDrop.current = true;
+          void linkConsole(c.source, c.target);
+        }}
+        onConnectEnd={(e, state) => {
+          setLinking(false);
+          if (linkedOnDrop.current) return;
+          // fallback: dropped anywhere on a tile (not exactly on its handle)
+          const pt = "changedTouches" in e ? e.changedTouches[0] : (e as MouseEvent);
+          const el = pt ? document.elementFromPoint(pt.clientX, pt.clientY) : null;
+          const target = el?.closest(".react-flow__node")?.getAttribute("data-id") ?? null;
+          const source = state.fromNode?.id ?? null;
+          if (linkValid(source, target)) void linkConsole(source, target);
+        }}
+        onEdgeContextMenu={(e, edge) => {
+          e.preventDefault();
+          if (edge.id.startsWith("link:")) void unlinkConsole(edge.source, edge.target);
+        }}
         onNodesChange={onNodesChange}
         defaultViewport={initialViewport}
         onMoveEnd={onMoveEnd}
@@ -232,6 +262,7 @@ function WorkspaceCanvas() {
         <ZoomControl />
       </ReactFlow>
 
+      <OrchestratorHud />
       <SelectionBar onGroup={() => window.dispatchEvent(new CustomEvent("board:group-selected"))} />
 
       <AnimatePresence>

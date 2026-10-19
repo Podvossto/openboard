@@ -24,6 +24,11 @@ export function useOrchestrator() {
           title: c.title,
           agent: agentShort(c.agent),
           group: w.groups.find((g) => g.id === c.group)?.name,
+          lead: !!c.lead,
+          links: (c.links ?? [])
+            .map((tid) => (w.tiles ?? []).find((t) => t.id === tid))
+            .filter((t): t is NonNullable<typeof t> => !!t)
+            .map((t) => ({ id: t.id, kind: t.kind, title: t.title })),
         })),
       );
       const key = JSON.stringify(roster);

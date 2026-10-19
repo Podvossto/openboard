@@ -106,6 +106,9 @@ pub struct SpawnArgs {
     /// Per-console model override (`--model`), e.g. "opus" / "sonnet" for Claude.
     #[serde(default)]
     model: Option<String>,
+    /// Linked tiles (kind, title) — the agent gets the matching tile tools.
+    #[serde(default)]
+    links: Vec<(String, String)>,
 }
 
 #[tauri::command]
@@ -184,7 +187,9 @@ pub fn spawn_console(state: State<'_, AppState>, args: SpawnArgs) -> Result<()> 
             Mode::Fresh { session }
         };
         let mut spec = launch_spec(&agent, mode, settings_file.as_deref());
-        if args.lead && matches!(agent, AgentKind::ClaudeCode) {
+        let kinds: Vec<String> = args.links.iter().map(|l| l.0.clone()).collect();
+        let tiles_prompt = board_core::mcp::tiles_prompt(&args.links);
+        if (args.lead || !args.links.is_empty()) && matches!(agent, AgentKind::ClaudeCode) {
             let cfg = board_core::mcp::claude_mcp_config(
                 &state.hooks.url(),
                 &state.hooks.token,
@@ -192,13 +197,26 @@ pub fn spawn_console(state: State<'_, AppState>, args: SpawnArgs) -> Result<()> 
             );
             let path = state.data_dir.join(format!("mcp-{}.json", args.id));
             std::fs::write(&path, serde_json::to_vec(&cfg)?)?;
+            let prompt = [
+                if args.lead {
+                    board_core::mcp::LEAD_PROMPT
+                } else {
+                    ""
+                },
+                tiles_prompt.as_str(),
+            ]
+            .iter()
+            .filter(|p| !p.is_empty())
+            .copied()
+            .collect::<Vec<_>>()
+            .join("\n\n");
             spec.args.extend([
                 "--mcp-config".into(),
                 path.display().to_string(),
                 "--allowedTools".into(),
-                "mcp__agent-board__list_consoles,mcp__agent-board__read_console,mcp__agent-board__send_to_console,mcp__agent-board__spawn_console".into(),
+                board_core::mcp::allowed_tools(args.lead, &kinds),
                 "--append-system-prompt".into(),
-                board_core::mcp::LEAD_PROMPT.into(),
+                prompt,
             ]);
         }
         match agent {
@@ -735,6 +753,21 @@ pub async fn usage_for_sessions(
 #[tauri::command]
 pub fn sync_roster(state: State<'_, AppState>, roster: Vec<crate::orchestrator::RosterEntry>) {
     *state.tools.roster.lock() = roster;
+}
+
+/// The UI applied (or rejected) a `tile://op` from an agent; `error` wins over `text`.
+#[tauri::command]
+pub fn tile_op_result(
+    state: State<'_, AppState>,
+    op_id: String,
+    text: Option<String>,
+    error: Option<String>,
+) {
+    let r = match error {
+        Some(e) => Err(e),
+        None => Ok(text.unwrap_or_default()),
+    };
+    crate::orchestrator::complete_op(&state.tools, &op_id, r);
 }
 
 // ---------- skills & MCP (the CLIs own their config) ----------

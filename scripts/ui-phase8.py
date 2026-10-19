@@ -144,7 +144,8 @@ with sync_playwright() as p:
     # ---- background glow follows pointer
     pg.mouse.move(bb["x"] + 300, bb["y"] + 500)
     pg.wait_for_timeout(200)
-    glow = pg.evaluate("[...document.querySelectorAll('div')].some(d => (d.style.background||'').includes('radial-gradient'))")
+    # dot glow layer (board-dot-glow) reveals a brighter dot grid via a radial-gradient mask around the cursor
+    glow = pg.evaluate("() => { const g = document.querySelector('.board-dot-glow'); return !!g && (g.style.maskImage || '').includes('radial-gradient'); }")
     check(glow, "pointer glow layer present")
 
     pg.screenshot(path="/tmp/ab-phase8.png")

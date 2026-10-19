@@ -38,6 +38,8 @@ export interface SpawnArgs {
   cols: number;
   rows: number;
   agentSession?: string;
+  /** linked tiles (kind, title) → the agent gets tile tools */
+  links?: [string, string][];
   resume: boolean;
   /** run the CLI's own login flow instead of the agent */
   login?: boolean;
@@ -89,7 +91,9 @@ export const ipc = {
   updateCheck: () => invoke<UpdateInfo | null>("update_check"),
   /** downloads, verifies the signature, installs and restarts */
   updateInstall: () => invoke<void>("update_install"),
-  syncRoster: (roster: { id: string; title: string; agent: string; group?: string }[]) =>
+  /** answer an agent's tile tool call (see features/links/useTileOps) */
+  tileOpResult: (opId: string, text: string | null, error: string | null) => invoke<void>("tile_op_result", { opId, text, error }),
+  syncRoster: (roster: { id: string; title: string; agent: string; group?: string; lead?: boolean; links?: { id: string; kind: string; title: string }[] }[]) =>
     invoke<void>("sync_roster", { roster }),
   usageAll: () => invoke<AccountUsage[]>("usage_all"),
   usageAnalytics: (days: number) => invoke<Analytics>("usage_analytics", { days }),
@@ -132,6 +136,8 @@ export const events = {
     listen<{ from: string; to: string }>("orchestrator://sent", (e) => cb(e.payload)),
   onUpdateProgress: (cb: (p: { downloaded: number; total: number | null }) => void): Promise<UnlistenFn> =>
     listen<{ downloaded: number; total: number | null }>("updater://progress", (e) => cb(e.payload)),
+  onTileOp: (cb: (p: { opId: string; from: string; tile: string; tool: string; args: Record<string, unknown> }) => void): Promise<UnlistenFn> =>
+    listen<{ opId: string; from: string; tile: string; tool: string; args: Record<string, unknown> }>("tile://op", (e) => cb(e.payload)),
   /** every Claude hook call (diagnostics + session-id tracking) */
   onHook: (
     cb: (p: { id: string; event: string; session: string | null }) => void,

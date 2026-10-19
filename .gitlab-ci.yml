@@ -61,7 +61,8 @@ windows-installer:
     paths: [.cargo/registry, .cargo/git, target]
   script:
     - npm ci --cache .npm --prefer-offline
-    - npx tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis
+    # branch builds have no signing key (protected vars are tag-only) → skip updater artifacts
+    - npx tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}'
     - mkdir -p dist-win
     - cp target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe dist-win/
     - ls -lh dist-win/

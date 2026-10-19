@@ -152,6 +152,15 @@ export const ConsoleNodeView = memo(function ConsoleNodeView({ data, selected, d
       {/* invisible anchors for orchestrator edges */}
       <Handle type="target" position={Position.Left} className="console-anchor" isConnectable={false} />
       <Handle type="source" position={Position.Right} className="console-anchor" isConnectable={false} />
+      {/* drag from here onto a kanban / checklist / calendar tile to give this agent tools for it */}
+      <Handle
+        id="link"
+        type="source"
+        position={Position.Right}
+        className="console-link-handle"
+        title="Drag onto a Kanban, Checklist or Calendar to link it to this agent"
+        aria-label="Link to a tile"
+      />
       <div className="console-body nodrag nowheel nopan">
         <TerminalView console={c} />
       </div>

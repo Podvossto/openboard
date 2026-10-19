@@ -61,6 +61,7 @@ pub fn run() {
                 roster: Mutex::new(vec![]),
                 pty: pty.clone(),
                 app: handle.clone(),
+                pending: Mutex::new(Default::default()),
             });
             hooks.set_tools(tools.clone());
 
@@ -126,6 +127,7 @@ pub fn run() {
             commands::remove_mcp,
             commands::usage_for_sessions,
             commands::sync_roster,
+            commands::tile_op_result,
             updater::app_version,
             updater::update_check,
             updater::update_install,

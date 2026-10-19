@@ -184,6 +184,9 @@ pub struct ConsoleNode {
     /// Automation loop config (frontend-owned shape, see src/features/loops).
     #[serde(rename = "loop", default, skip_serializing_if = "Option::is_none")]
     pub loop_cfg: Option<serde_json::Value>,
+    /// Tile ids linked to this console (agent ↔ tile): it gets tools for them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
