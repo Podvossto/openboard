@@ -62,3 +62,6 @@
   position: absolute; top: 10px; left: 12px; border-radius: 999px;
   background: color-mix(in srgb, var(--sc) 14%, var(--color-surface)); border: 1px solid color-mix(in srgb, var(--sc) 45%, transparent);
 }
+
+/* hover dot glow (Board.tsx): fades in/out; never blocks the canvas */
+.board-dot-glow { pointer-events: none; transition: opacity 220ms ease; }

@@ -147,20 +147,15 @@ function WorkspaceCanvas() {
     useBoard.getState().setViewport(v);
   }, []);
 
-  const onPointerMove = useCallback((e: React.PointerEvent) => {
-    setMousePos({ x: e.clientX, y: e.clientY });
+  // cursor in canvas-local px: drives the dot-glow mask (the old full-screen overlay sat
+  // UNDER the opaque dot background and used window coords, so it was never visible)
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setMousePos({ x: e.clientX - r.left, y: e.clientY - r.top });
   }, []);
 
   return (
-    <div className="relative w-full h-full overflow-hidden" onPointerMove={onPointerMove}>
-      {mousePos && (
-        <div
-          className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-300"
-          style={{
-            background: `radial-gradient(circle 260px at ${mousePos.x}px ${mousePos.y}px, rgba(255, 255, 255, 0.05), transparent 75%)`,
-          }}
-        />
-      )}
+    <div className="relative w-full h-full overflow-hidden" onPointerMove={onPointerMove} onPointerLeave={() => setMousePos(null)}>
 
       <ReactFlow
         className={resizing ? "is-resizing" : undefined}
@@ -202,6 +197,21 @@ function WorkspaceCanvas() {
         colorMode="dark"
       >
         <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="#2b2c33" bgColor="#0a0b0d" />
+        {/* hover glow: a brighter copy of the same dot grid, revealed in a soft circle around the cursor */}
+        <Background
+          id="dot-glow"
+          className="board-dot-glow"
+          variant={BackgroundVariant.Dots}
+          gap={22}
+          size={1.6}
+          color="#8a8fa8"
+          bgColor="transparent"
+          style={{
+            opacity: mousePos ? 1 : 0,
+            maskImage: mousePos ? `radial-gradient(circle 200px at ${mousePos.x}px ${mousePos.y}px, #000 0%, rgba(0,0,0,0.45) 45%, transparent 100%)` : undefined,
+            WebkitMaskImage: mousePos ? `radial-gradient(circle 200px at ${mousePos.x}px ${mousePos.y}px, #000 0%, rgba(0,0,0,0.45) 45%, transparent 100%)` : undefined,
+          }}
+        />
         <MiniMap
           className="board-minimap"
           position="bottom-left"
