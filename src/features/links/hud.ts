@@ -1,5 +1,8 @@
 // Pure rows for the Orchestrator HUD (unit-tested).
-import type { ConsoleNode, Tile } from "../../lib/types";
+import type { ConsoleNode, Group, Tile } from "../../lib/types";
+
+/** Team colours (cycled by lead order). */
+export const TEAM_COLORS = ["#8ea2ff", "#5fd4a8", "#f2b45c", "#e57ad8", "#6fc8ff", "#ff8f7a"];
 
 export interface HudFlash {
   from: string;
@@ -11,6 +14,9 @@ export interface HudRow {
   id: string;
   title: string;
   lead: boolean;
+  /** team name: the lead's group, else "<lead>'s team"; consoles with tiles only: "" */
+  team: string;
+  color: string;
   workers: { id: string; title: string; sent: number; last: number }[];
   tiles: { id: string; title: string; kind: string; edits: number; last: number }[];
 }
@@ -19,7 +25,13 @@ export interface HudRow {
  * One row per lead (its group-mates + consoles it messaged) and per console with linked
  * tiles. Counts come from recent flashes (session-local; reset on app restart).
  */
-export function hudRows(consoles: ConsoleNode[], tiles: Tile[], contacted: Record<string, string[]>, flashes: HudFlash[]): HudRow[] {
+export function hudRows(
+  consoles: ConsoleNode[],
+  tiles: Tile[],
+  contacted: Record<string, string[]>,
+  flashes: HudFlash[],
+  groups: Pick<Group, "id" | "name">[] = [],
+): HudRow[] {
   const byId = new Map(consoles.map((c) => [c.id, c]));
   const tileById = new Map(tiles.map((t) => [t.id, t]));
   const stats = (from: string, to: string, kind: string) => {
@@ -32,6 +44,8 @@ export function hudRows(consoles: ConsoleNode[], tiles: Tile[], contacted: Recor
     if (c.lead) {
       for (const id of contacted[c.id] ?? []) workerIds.add(id);
       if (c.group) consoles.filter((x) => x.group === c.group && x.id !== c.id).forEach((x) => workerIds.add(x.id));
+      // consoles the user dragged a team line to (item 8: a lead outside any group)
+      for (const id of c.links ?? []) if (byId.has(id) && id !== c.id) workerIds.add(id);
     }
     const linked = (c.links ?? []).map((id) => tileById.get(id)).filter((t): t is Tile => !!t);
     if (!c.lead && linked.length === 0) continue;
@@ -39,6 +53,8 @@ export function hudRows(consoles: ConsoleNode[], tiles: Tile[], contacted: Recor
       id: c.id,
       title: c.title,
       lead: !!c.lead,
+      team: c.lead ? (groups.find((g) => g.id === c.group)?.name ?? `${c.title}'s team`) : "",
+      color: "",
       workers: [...workerIds]
         .filter((id) => byId.has(id))
         .map((id) => {
@@ -51,6 +67,9 @@ export function hudRows(consoles: ConsoleNode[], tiles: Tile[], contacted: Recor
       }),
     });
   }
-  // leads first, then by title
-  return rows.sort((a, b) => Number(b.lead) - Number(a.lead) || a.title.localeCompare(b.title));
+  // leads first, then by title; each lead gets a stable team colour by that order
+  rows.sort((a, b) => Number(b.lead) - Number(a.lead) || a.title.localeCompare(b.title));
+  let i = 0;
+  for (const r of rows) r.color = r.lead ? TEAM_COLORS[i++ % TEAM_COLORS.length]! : "#8b8d98";
+  return rows;
 }

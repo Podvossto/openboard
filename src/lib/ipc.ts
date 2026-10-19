@@ -93,7 +93,7 @@ export const ipc = {
   updateInstall: () => invoke<void>("update_install"),
   /** answer an agent's tile tool call (see features/links/useTileOps) */
   tileOpResult: (opId: string, text: string | null, error: string | null) => invoke<void>("tile_op_result", { opId, text, error }),
-  syncRoster: (roster: { id: string; title: string; agent: string; group?: string; lead?: boolean; links?: { id: string; kind: string; title: string }[] }[]) =>
+  syncRoster: (roster: { id: string; title: string; agent: string; group?: string; lead?: boolean; team?: string[]; links?: { id: string; kind: string; title: string }[] }[]) =>
     invoke<void>("sync_roster", { roster }),
   usageAll: () => invoke<AccountUsage[]>("usage_all"),
   usageAnalytics: (days: number) => invoke<Analytics>("usage_analytics", { days }),

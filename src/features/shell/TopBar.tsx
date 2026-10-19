@@ -141,7 +141,22 @@ function UsagePill() {
   if (!all) return null;
   const readable = all.filter((a) => !a.usage.error);
   const main = all.find((a) => a.id === "default-claude" && !a.usage.error) ?? readable[0];
-  if (!main) return null;
+  if (!main) {
+    // every account failed: still show the pill with the reason (it used to vanish silently)
+    const why = all.find((a) => a.id === "default-claude")?.usage.error ?? all[0]?.usage.error ?? "no accounts";
+    return (
+      <button
+        className="usage-pill flex h-8 items-center gap-2 rounded-full border border-warn/40 bg-warn/10 px-3 text-[12px] font-medium text-warn transition hover:bg-warn/20 active:scale-95"
+        title={`Usage unavailable: ${why} — click for details`}
+        aria-label="Usage"
+        data-usage-error="true"
+        onClick={() => useBoard.getState().setUi({ usageModal: {} })}
+      >
+        <span className="text-[13px] font-bold leading-none" aria-hidden="true">✳</span>
+        <span className="max-w-[220px] truncate">Usage: {why}</span>
+      </button>
+    );
+  }
   const level = usageLevel(main.usage);
   const ring = RING[level];
   const resetStr = formatReset(main.usage.session) || formatReset(main.usage.weekly);

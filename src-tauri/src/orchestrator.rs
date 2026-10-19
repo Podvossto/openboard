@@ -28,6 +28,9 @@ pub struct RosterEntry {
     /// tiles linked to this console: (id, kind, title)
     #[serde(default)]
     pub links: Vec<LinkedTile>,
+    /// console ids a lead was linked to by the user (its team, besides group-mates)
+    #[serde(default)]
+    pub team: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -153,6 +156,13 @@ impl Tools for BoardTools {
 
     fn list(&self, caller: &str) -> Value {
         let r = self.roster.lock().clone();
+        let me = r.iter().find(|e| e.id == caller).cloned();
+        let in_team = |e: &RosterEntry| {
+            me.as_ref().is_some_and(|m| {
+                e.id != m.id
+                    && (m.team.contains(&e.id) || (m.group.is_some() && m.group == e.group))
+            })
+        };
         json!(r
             .iter()
             .map(|e| json!({
@@ -161,6 +171,7 @@ impl Tools for BoardTools {
                 "status": self.status_str(&e.id),
                 "group": e.group,
                 "you": e.id == caller,
+                "yourTeam": in_team(e),
             }))
             .collect::<Vec<_>>())
     }

@@ -53,7 +53,7 @@ function WorkspaceCanvas() {
   const flashes = useBoard((s) => s.flashes);
   const contacted = useBoard((s) => s.contacted);
 
-  const [radialMenu, setRadialMenu] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null);
+  const [radialMenu, setRadialMenu] = useState<{ x: number; y: number; flowX: number; flowY: number; group?: string } | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
 
   // re-evaluate edge activity when the newest flash expires
@@ -193,7 +193,7 @@ function WorkspaceCanvas() {
         }}
         onEdgeContextMenu={(e, edge) => {
           e.preventDefault();
-          if (edge.id.startsWith("link:")) void unlinkConsole(edge.source, edge.target);
+          if (edge.id.startsWith("link:") || edge.id.startsWith("team:")) void unlinkConsole(edge.source, edge.target);
         }}
         onNodesChange={onNodesChange}
         defaultViewport={initialViewport}
@@ -211,13 +211,27 @@ function WorkspaceCanvas() {
           const flow = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
           setRadialMenu({ x: e.clientX, y: e.clientY, flowX: flow.x, flowY: flow.y });
         }}
+        onNodeContextMenu={(e, n) => {
+          // item 7: right-click on a group's empty body (not its header menu) → radial menu,
+          // and whatever is added lands inside that group
+          if (n.type !== "group" && n.type !== "section") return;
+          if ((e.target as HTMLElement).closest(".group-header, .menu, button, input")) return;
+          e.preventDefault();
+          const flow = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+          setRadialMenu({ x: e.clientX, y: e.clientY, flowX: flow.x, flowY: flow.y, group: n.type === "group" ? n.id : undefined });
+        }}
         minZoom={0.15}
         maxZoom={2}
-        panOnScroll
+        // item 4: a selected group/section must NOT jump above everything (React Flow's default
+        // z:1000 on select) — it covered the tiles on top of it until you clicked empty space
+        elevateNodesOnSelect={false}
+        // item 5: wheel zooms directly (no Ctrl); terminals/tiles keep their own scroll (.nowheel)
+        panOnScroll={false}
+        zoomOnScroll
+        zoomOnPinch
         panOnDrag={!inking}
         nodesDraggable={!inking}
-        zoomOnScroll={false}
-        zoomActivationKeyCode="Control"
+
         deleteKeyCode={null}
         selectionOnDrag={false}
         selectionKeyCode="Shift"
@@ -273,7 +287,13 @@ function WorkspaceCanvas() {
             flowX={radialMenu.flowX}
             flowY={radialMenu.flowY}
             onClose={() => setRadialMenu(null)}
-            onOpenAddConsoleDialog={(p) => useBoard.getState().setUi({ addConsole: { pos: p } })}
+            group={radialMenu.group}
+            onOpenAddConsoleDialog={(p) => {
+              const gid = radialMenu.group;
+              const g = gid ? activeWorkspace(useBoard.getState().board).groups.find((x) => x.id === gid) : undefined;
+              // group children use group-relative coordinates
+              useBoard.getState().setUi({ addConsole: g ? { pos: { x: p.x - g.x, y: p.y - g.y }, group: g.id } : { pos: p } });
+            }}
           />
         )}
       </AnimatePresence>

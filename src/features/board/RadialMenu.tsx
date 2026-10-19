@@ -16,6 +16,8 @@ export interface RadialMenuProps {
   flowY: number;
   onClose: () => void;
   onOpenAddConsoleDialog?: (pos: { x: number; y: number }) => void;
+  /** opened inside a group: new tiles join it */
+  group?: string;
 }
 
 interface MenuItem {
@@ -28,7 +30,7 @@ interface MenuItem {
 
 const RADIUS = 88;
 
-export function RadialMenu({ x, y, flowX, flowY, onClose, onOpenAddConsoleDialog }: RadialMenuProps) {
+export function RadialMenu({ x, y, flowX, flowY, onClose, onOpenAddConsoleDialog, group }: RadialMenuProps) {
   const rf = useReactFlow();
   const present = useIsPresent();
   const [hovered, setHovered] = useState<string | null>(null);
@@ -52,7 +54,7 @@ export function RadialMenu({ x, y, flowX, flowY, onClose, onOpenAddConsoleDialog
 
   const addTileAt = (kind: TileKind) => {
     onClose();
-    void addTile(kind, rf, { at: { x: flowX - 160, y: flowY - 120 } });
+    void addTile(kind, rf, { at: { x: flowX - 160, y: flowY - 120 }, group });
   };
 
   const items: MenuItem[] = [

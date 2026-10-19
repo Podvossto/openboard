@@ -87,6 +87,12 @@ fn fetch_claude_creds(path: &Path) -> Usage {
     else {
         return err("not logged in");
     };
+    // Claude Code refreshes this token only while it runs: an expired one gives a clear
+    // hint instead of a bare HTTP 401 (we never refresh tokens ourselves).
+    let expired = creds
+        .pointer("/claudeAiOauth/expiresAt")
+        .and_then(|v| v.as_i64())
+        .is_some_and(|ms| ms < now_ms());
     let res = agent()
         .get("https://api.anthropic.com/api/oauth/usage")
         .header("Authorization", &format!("Bearer {tok}"))
@@ -99,8 +105,27 @@ fn fetch_claude_creds(path: &Path) -> Usage {
             Ok(v) => parse(&v),
             Err(e) => err(&e.to_string()),
         },
-        Ok(r) => err(&format!("HTTP {}", r.status().as_u16())),
-        Err(e) => err(&e.to_string()),
+        Ok(r) => err(&http_hint(r.status().as_u16(), expired)),
+        Err(e) => err(&format!("can't reach api.anthropic.com ({e})")),
+    }
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+/// Human message for a failed usage call.
+pub fn http_hint(status: u16, token_expired: bool) -> String {
+    match status {
+        401 | 403 if token_expired => {
+            "login expired — open any Claude console once to refresh it".into()
+        }
+        401 | 403 => "login not accepted — run /login in a Claude console".into(),
+        429 => "rate limited — try again in a minute".into(),
+        s => format!("HTTP {s}"),
     }
 }
 
@@ -308,6 +333,14 @@ mod tests {
         );
         assert_eq!(u.weekly.unwrap().percent, 40.0);
         assert!(fetch_codex(&d.path().join("nope")).error.is_some());
+    }
+
+    #[test]
+    fn http_hints_are_actionable() {
+        assert!(http_hint(401, true).contains("open any Claude console"));
+        assert!(http_hint(401, false).contains("/login"));
+        assert!(http_hint(429, false).contains("rate limited"));
+        assert_eq!(http_hint(500, false), "HTTP 500");
     }
 
     #[test]

@@ -1,7 +1,7 @@
 import type { Edge } from "@xyflow/react";
 import type { ConsoleNode, Tile } from "../../lib/types";
 
-export type FlowEdgeData = { kind: "lead" | "handoff" | "link"; active: boolean; color: string };
+export type FlowEdgeData = { kind: "lead" | "handoff" | "link" | "team"; active: boolean; color: string };
 export type FlowEdge = Edge<FlowEdgeData, "flow">;
 
 export interface Flash {
@@ -54,6 +54,16 @@ export function buildEdges(consoles: ConsoleNode[], flashes: Flash[], now: numbe
       if (!kind) continue;
       const id = `link:${c.id}->${tid}`;
       out.set(id, { id, source: c.id, target: tid, type: "flow", data: { kind: "link", active: isActive(c.id, tid), color: LINK_COLOR[kind] ?? "#8ea2ff" }, zIndex: 1 });
+    }
+  }
+  // lead → teammate lines the user drew (item 8)
+  for (const c of consoles) {
+    if (!c.lead) continue;
+    for (const wid of c.links ?? []) {
+      if (!ids.has(wid) || wid === c.id) continue;
+      const id = `team:${c.id}->${wid}`;
+      if (out.has(`lead:${c.id}->${wid}`)) out.delete(`lead:${c.id}->${wid}`);
+      out.set(id, { id, source: c.id, target: wid, type: "flow", data: { kind: "team", active: isActive(c.id, wid), color: "#f2b45c" }, zIndex: 1 });
     }
   }
   return [...out.values()];

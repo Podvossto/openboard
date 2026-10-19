@@ -5,29 +5,14 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { ipc } from "../../lib/ipc";
 import type { AgentKind, AuthInfo, CatalogStatus, Detected, Settings } from "../../lib/types";
 import { activeWorkspace, CONSOLE_H, CONSOLE_W, nextPosition, useBoard } from "../../store/board";
-import { clampFont, formatArgs, parseArgs } from "./args";
+import { clampFont } from "./args";
 import { AgentIcon, CatalogIcon } from "../../components/AgentIcon";
 import { ProfilesSection } from "./ProfilesSection";
 import { UpdateSettings } from "../updater/UpdatePrompt";
+import { AgentPicker } from "../../components/AgentPicker";
 import "./settings.css";
 
 type TabId = "general" | "agents" | "providers" | "terminal";
-type AgentChoice = "claudeCode" | "codex" | "shell";
-
-const CHOICES: { id: AgentChoice; label: string }[] = [
-  { id: "claudeCode", label: "Claude Code" },
-  { id: "codex", label: "Codex" },
-  { id: "shell", label: "Shell" },
-];
-
-function choiceOf(a: AgentKind): AgentChoice {
-  return a.kind === "custom" ? "shell" : a.kind;
-}
-
-function agentOf(c: AgentChoice): AgentKind {
-  return c === "shell" ? { kind: "custom", program: "" } : { kind: c };
-}
-
 function Switch({
   label,
   checked,
@@ -59,20 +44,14 @@ function AgentCard({
   name,
   agent,
   info,
-  args,
-  onArgs,
   onLogin,
 }: {
   name: string;
   agent: "claudeCode" | "codex";
   info: AuthInfo | undefined;
-  args: string[];
-  onArgs: (a: string[]) => void;
   onLogin: () => void;
 }) {
   const st = statusOf(info);
-  const [text, setText] = useState(() => formatArgs(args));
-  const idBase = `args-${agent}`;
   return (
     <div className="agent-card">
       <div className="agent-card-head">
@@ -89,20 +68,6 @@ function AgentCard({
         <button className="btn sm" disabled={!info?.installed} onClick={onLogin}>
           {info?.loggedIn ? "Re-authenticate" : "Sign in"}
         </button>
-      </div>
-      <div className="field mt-2">
-        <label htmlFor={idBase}>Default CLI arguments</label>
-        <input
-          id={idBase}
-          className="input"
-          value={text}
-          placeholder="e.g. --model opus"
-          spellCheck={false}
-          onChange={(e) => {
-            setText(e.target.value);
-            onArgs(parseArgs(e.target.value));
-          }}
-        />
       </div>
     </div>
   );
@@ -265,7 +230,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
     onClose();
   };
 
-  const choice = choiceOf(draft.defaultAgent);
 
   const tabs: { id: TabId; label: string }[] = [
     { id: "general", label: "General" },
@@ -346,19 +310,13 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
               <div className="field">
                 <label id="set-agent-label">Default agent for new consoles</label>
-                <div className="seg" role="radiogroup" aria-labelledby="set-agent-label">
-                  {CHOICES.map((c) => (
-                    <button
-                      key={c.id}
-                      role="radio"
-                      aria-checked={choice === c.id}
-                      className={choice === c.id ? "on" : ""}
-                      onClick={() => patch({ defaultAgent: agentOf(c.id) })}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
+                <AgentPicker
+                  label="Default agent for new consoles"
+                  value={draft.defaultAgent}
+                  catalog={detected?.catalog ?? []}
+                  onChange={(a) => patch({ defaultAgent: a })}
+                />
+                <span className="help">The agent the + New button and Ctrl+Shift+N start with.</span>
               </div>
 
               <div className="field">
@@ -412,8 +370,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
                 name="Claude Code"
                 agent="claudeCode"
                 info={detected?.claude}
-                args={draft.claudeArgs}
-                onArgs={(a) => patch({ claudeArgs: a })}
                 onLogin={() => void login("claudeCode")}
               />
 
@@ -421,8 +377,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
                 name="Codex"
                 agent="codex"
                 info={detected?.codex}
-                args={draft.codexArgs}
-                onArgs={(a) => patch({ codexArgs: a })}
                 onLogin={() => void login("codex")}
               />
 

@@ -23,12 +23,26 @@ describe("hudRows", () => {
     ]);
     expect(rows[1]!.tiles).toEqual([{ id: "k", title: "T-k", kind: "kanban", edits: 1, last: 20 }]);
   });
+  it("names teams by group (or lead) and gives each lead a colour; drawn teammates count", () => {
+    const consoles = [c("L", { lead: true, group: "g" }), c("M", { lead: true, links: ["x"] }), c("x"), c("a", { group: "g" })];
+    const rows = hudRows(consoles, [], {}, [], [{ id: "g", name: "Backend" }]);
+    expect(rows.map((r) => [r.id, r.team])).toEqual([
+      ["L", "Backend"],
+      ["M", "M's team"],
+    ]);
+    expect(rows[0]!.color).not.toBe(rows[1]!.color);
+    expect(rows[1]!.workers.map((w) => w.id)).toEqual(["x"]);
+  });
   it("is empty without leads or links", () => {
     expect(hudRows([c("x")], [], {}, [])).toEqual([]);
   });
 });
 
 describe("buildEdges — links", () => {
+  it("draws lead → teammate team edges the user made", () => {
+    const e = buildEdges([c("L", { lead: true, links: ["w"] }), c("w")], [], 0, {}, 6000, []);
+    expect(e.map((x) => [x.id, x.data?.kind])).toEqual([["team:L->w", "team"]]);
+  });
   it("draws console → tile link edges, active while the agent edits", () => {
     const e = buildEdges([c("w", { links: ["k", "missing"] })], [{ from: "w", to: "k", kind: "tile", at: 100 }], 200, {}, 6000, [tile("k", "kanban")]);
     expect(e).toHaveLength(1);

@@ -9,7 +9,7 @@ import { activeWorkspace } from "../../store/board";
 export async function addTile(
   kind: TileKind,
   rf: Pick<ReactFlowInstance, "screenToFlowPosition" | "setCenter" | "getZoom">,
-  opts?: { data?: TileData[TileKind]; title?: string; at?: { x: number; y: number } },
+  opts?: { data?: TileData[TileKind]; title?: string; at?: { x: number; y: number }; group?: string },
 ) {
   const id = await ipc.newId();
   const m = TILE_META[kind];
@@ -24,7 +24,10 @@ export async function addTile(
   const taken: Rect[] = [...ws.groups, ...ws.consoles.filter((x) => !x.group), ...(ws.tiles ?? []).map(abs)];
   const centerPos = opts?.at ?? { x: Math.round(c.x - m.w / 2), y: Math.round(c.y - m.h / 2) };
   const p = opts?.at ? centerPos : freeSpot(centerPos, m.w, m.h, taken);
-  const t = newTile(id, kind, p.x, p.y, opts?.title);
+  // inside a group: store group-relative coordinates (same as consoles)
+  const g = opts?.group ? ws.groups.find((x) => x.id === opts.group) : undefined;
+  const t = newTile(id, kind, g ? p.x - g.x : p.x, g ? p.y - g.y : p.y, opts?.title);
+  if (g) t.group = g.id;
   if (opts?.data) t.data = opts.data;
   useBoard.getState().addTile(t);
   // bring it into view

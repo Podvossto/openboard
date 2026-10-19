@@ -20,6 +20,8 @@ import { useAutosave } from "../features/board/useAutosave";
 import { resumeAll } from "../features/console/launch";
 import { ipc } from "../lib/ipc";
 import { useBoard } from "../store/board";
+import { useNeedsSince } from "../features/shell/useNeedsSince";
+import { NeedsYouInbox } from "../features/shell/NeedsYouInbox";
 import { useTileOps } from "../features/links/useTileOps";
 import { UpdatePrompt } from "../features/updater/UpdatePrompt";
 import { useUpdaterBoot } from "../features/updater/store";
@@ -65,6 +67,7 @@ export function App() {
   useAutosave();
   useLoops();
   useTileOps();
+  useNeedsSince();
   useUpdaterBoot();
   useSessionUsagePoller();
   useOrchestrator();
@@ -107,6 +110,7 @@ export function App() {
             onClose={() => useBoard.getState().setUi({ addConsole: null })}
           />
         )}
+        <NeedsYouInbox />
         <UpdatePrompt />
         <ConfirmDialog />
       </div>

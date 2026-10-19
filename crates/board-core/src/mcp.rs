@@ -285,7 +285,7 @@ pub fn claude_mcp_config(hook_url: &str, token: &str, console_id: &str) -> Value
 
 pub const LEAD_PROMPT: &str = "You are the orchestrator (lead) of a team of AI coding agents on Agent Board. \
 Break the user's goal into self-contained tasks and delegate them with the agent-board MCP tools: \
-list_consoles to see the team, send_to_console to assign work (one clear task per message, include file paths and acceptance criteria), \
+list_consoles to see the team (consoles with yourTeam=true are yours; prefer them), send_to_console to assign work (one clear task per message, include file paths and acceptance criteria), \
 read_console to check progress and results, spawn_console if you need more workers. \
 Do not assign work to consoles that are 'working' or 'needsYou'. Summarise results for the user when the team is done.";
 

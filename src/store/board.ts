@@ -148,6 +148,8 @@ interface BoardState {
   flashes: { from: string; to: string; kind: "lead" | "handoff" | "tile"; at: number }[];
   /** lead id → console ids it has sent work to (this session) */
   contacted: Record<string, string[]>;
+  /** console id → when it entered needsYou (inbox ordering / age) */
+  needsSince: Record<string, number>;
   flash: (from: string, to: string, kind: "lead" | "handoff" | "tile") => void;
   /** node ids playing their exit animation */
   leaving: Record<string, true>;
@@ -363,6 +365,7 @@ export const useBoard = create<BoardState>((set) => ({
   setFocused: (focused) => set({ focused }),
   flashes: [],
   contacted: {},
+  needsSince: {},
   flash: (from, to, kind) =>
     set((s) => {
       const now = Date.now();

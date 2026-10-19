@@ -25,6 +25,7 @@ export function useOrchestrator() {
           agent: agentShort(c.agent),
           group: w.groups.find((g) => g.id === c.group)?.name,
           lead: !!c.lead,
+          team: (c.links ?? []).filter((id) => w.consoles.some((x) => x.id === id)),
           links: (c.links ?? [])
             .map((tid) => (w.tiles ?? []).find((t) => t.id === tid))
             .filter((t): t is NonNullable<typeof t> => !!t)
