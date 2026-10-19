@@ -6,6 +6,7 @@
 pub mod agents;
 pub mod analytics;
 pub mod ansi;
+pub mod browser;
 pub mod catalog;
 pub mod error;
 pub mod files;

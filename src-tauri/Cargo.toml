@@ -15,7 +15,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 board-core = { path = "../crates/board-core" }
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["unstable"] }  # unstable = multiwebview (web tile child WebView)
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-single-instance = "2"

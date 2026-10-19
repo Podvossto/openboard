@@ -16,6 +16,8 @@ pub enum Error {
     UnsupportedVersion { found: u32, max: u32 },
     #[error("hook: {0}")]
     Hook(String),
+    #[error("{0}")]
+    Browser(String),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

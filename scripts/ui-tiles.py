@@ -85,7 +85,10 @@ with sync_playwright() as p:
     note.hover()
     note.get_by_role("button", name="Tile options").click()
     pg.get_by_role("button", name="Remove tile").click()
-    pg.wait_for_timeout(300)
+    try:
+        pg.wait_for_function("document.querySelectorAll(\".tile[data-kind='note']\").length === 0", timeout=3000)
+    except Exception:
+        pass
     check(pg.locator(".tile[data-kind='note']").count() == 0, "tile removed")
 
     pg.get_by_role("button", name="Fit view").click()

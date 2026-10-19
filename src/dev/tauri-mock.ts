@@ -366,6 +366,14 @@ w.__TAURI_INTERNALS__ = {
       }
       case "resize_console":
         return null;
+      // native web-tile browser (src-tauri/src/browser.rs) — recorded in __ipcLog, no real webview
+      case "browser_open":
+      case "browser_set_bounds":
+      case "browser_navigate":
+      case "browser_action":
+      case "browser_close":
+      case "browser_hide_all":
+        return null;
       case "plugin:dialog|ask":
       case "plugin:dialog|confirm":
         return true;

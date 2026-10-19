@@ -1,3 +1,4 @@
+mod browser;
 mod commands;
 mod events;
 mod orchestrator;
@@ -73,6 +74,12 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            browser::browser_open,
+            browser::browser_set_bounds,
+            browser::browser_navigate,
+            browser::browser_action,
+            browser::browser_close,
+            browser::browser_hide_all,
             commands::load_board,
             commands::save_board,
             commands::load_settings,

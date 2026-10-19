@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { Tile, TileData } from "../../lib/types";
 import { fitScale, normalizeUrl } from "./logic";
+import { nativeBrowserAvailable, browserIpc } from "./browser";
+import { NativeBrowser } from "./NativeBrowser";
 
 const iconBtn = "grid size-7 place-items-center rounded-full text-ink-2 transition hover:bg-surface-3 hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent";
 
@@ -11,6 +13,15 @@ export function WebTile({ tile, setData }: { tile: Tile<"web">; setData: (d: Til
   const [nonce, setNonce] = useState(0);
   const [err, setErr] = useState(false);
   const url = normalizeUrl(d.url ?? "");
+  // real WebView2 browser inside the desktop app (no X-Frame-Options limits); iframe elsewhere
+  const [native] = useState(nativeBrowserAvailable);
+  const [loading, setLoading] = useState(false);
+  const [navErr, setNavErr] = useState<string | null>(null);
+  const onNav = (u: string, isLoading: boolean) => {
+    setLoading(isLoading);
+    // keep the address bar in sync with in-page navigation (don't persist every hop)
+    if (document.activeElement?.getAttribute("aria-label") !== "URL") setDraft(u);
+  };
 
   const presetId = d.preset ?? "responsive";
   const w = d.w ?? 393;
@@ -49,11 +60,25 @@ export function WebTile({ tile, setData }: { tile: Tile<"web">; setData: (d: Til
     <div className="flex h-full flex-col">
       {/* Sleek minimal URL row */}
       <div className="flex items-center gap-1.5 border-b border-line px-2 py-1.5">
+        {native && url && (
+          <>
+            <button className={iconBtn} title="Back" aria-label="Back" onClick={() => void browserIpc.action(tile.id, "back")}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M15 6l-6 6 6 6" />
+              </svg>
+            </button>
+            <button className={iconBtn} title="Forward" aria-label="Forward" onClick={() => void browserIpc.action(tile.id, "forward")}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M9 6l6 6-6 6" />
+              </svg>
+            </button>
+          </>
+        )}
         <button
           className={iconBtn}
-          title="Reload"
-          aria-label="Reload"
-          onClick={() => setNonce((n) => n + 1)}
+          title={loading ? "Stop" : "Reload"}
+          aria-label={loading ? "Stop" : "Reload"}
+          onClick={() => (native && loading ? void browserIpc.action(tile.id, "stop") : setNonce((n) => n + 1))}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
             <path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7" />
@@ -99,7 +124,32 @@ export function WebTile({ tile, setData }: { tile: Tile<"web">; setData: (d: Til
         )}
       </div>
 
-      {url ? responsive ? (
+      {navErr && (
+        <div role="alert" className="border-b border-danger/40 bg-danger/10 px-3 py-1 text-[11.5px] text-danger">
+          {navErr}
+        </div>
+      )}
+      {url && native && responsive ? (
+        <div className="min-h-0 flex-1">
+          <NativeBrowser tileId={tile.id} url={url} nonce={nonce} onNav={onNav} onError={setNavErr} />
+        </div>
+      ) : url && native ? (
+        <div ref={stage} className="relative grid min-h-0 flex-1 place-items-center overflow-hidden bg-surface-2/40 p-3">
+          <div
+            data-device-frame
+            className="overflow-hidden rounded-[22px] border-[3px] border-line-strong bg-white shadow-[0_18px_48px_-18px_rgb(0_0_0/0.8)]"
+            style={{ width: Math.round(w * s) + 6, height: Math.round(h * s) + 6 }}
+          >
+            <NativeBrowser tileId={tile.id} url={url} nonce={nonce} scale={s} onNav={onNav} onError={setNavErr} />
+          </div>
+          <span
+            aria-label="Device size"
+            className="pointer-events-none absolute bottom-1.5 right-2 rounded-full bg-surface-2/90 px-2 py-0.5 font-mono text-[10.5px] tabular-nums text-ink-3"
+          >
+            {w} × {h} · {pct}
+          </span>
+        </div>
+      ) : url ? responsive ? (
         <iframe
           key={nonce}
           title={tile.title}
