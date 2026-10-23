@@ -1,41 +1,41 @@
-# Releasing Agent Board (in-app updates)
+# Releasing OpenBoard
 
-Installed apps check `http://updates.example.invalid:8740/agent-board/latest.json` (private network only)
-on start and every 6 hours, ask the user, then download → verify the minisign signature →
-install → restart. Boards/settings/accounts live in the app data dir and are untouched.
+Releases are Windows NSIS installers built by GitHub Actions and attached to a GitHub Release.
+They are unsigned, so Windows SmartScreen will warn on first run. There is no in-app updater;
+users download the new installer from the Releases page.
 
 ## Cut a release
 
 ```bash
-python3 scripts/bump-version.py patch        # or minor / major / 0.3.0 — updates Cargo.toml, tauri.conf.json, package(-lock).json
+python3 scripts/bump-version.py patch   # or minor / major / 0.3.0
+# updates Cargo.toml, src-tauri/tauri.conf.json, package.json and package-lock.json
 git commit -am "release: v$(node -p "require('./src-tauri/tauri.conf.json').version")"
-git tag -a vX.Y.Z -m "- what changed (shown in the update dialog)"
+git tag vX.Y.Z
 git push && git push origin vX.Y.Z
 ```
 
-The tag pipeline runs **only on our self-hosted runner** (`hermes-linux`, no SaaS minutes):
-`windows-release` builds the signed NSIS installer, writes `latest.json`
-(`scripts/make-latest-json.py`) and copies both into `/releases`
-(= `~/agent-board-releases/agent-board` on the server). The manifest is written last
-(atomic rename), so clients never see a manifest whose installer is missing.
-The tag message becomes the release notes. A tag that does not match the app version fails the job.
+Pushing a `v*` tag runs `.github/workflows/release.yml` on `windows-latest`:
 
-## Pieces on the server (outside the repo)
+1. `npm ci` and the pinned Windows native packages (`scripts/ci-win-native-deps.ps1`).
+2. Checks that the tag matches the version in `tauri.conf.json` (the job fails if not).
+3. `npx tauri build --bundles nsis`.
+4. Creates the GitHub Release with generated notes and attaches `*-setup.exe`.
 
-- Signing key: `~/.agent-board-signing/` (mode 700) — `agent-board.key`, `password`, `.pub`.
-  **Back it up.** Losing it means installed apps can never accept a new update (they would
-  need a manual reinstall with a new public key).
-- GitLab CI variables (protected + masked): `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
-  Tags `v*` are protected (Maintainers) so only protected pipelines can sign.
-- Runner volume: `~/.gitlab-runner/config.toml` → `volumes = ["/cache", "/srv/releases/openboard:/releases:rw"]`
-- Update server: `systemctl --user status agent-board-updates` — `python3 -m http.server 8740`
-  bound to the private network IP only, serving `~/agent-board-releases`.
+The same build runs on every push and pull request in `ci.yml` and is kept as a workflow artifact,
+so you can try the installer before tagging.
+
+## Building by hand
+
+```powershell
+npm ci
+npx tauri build --bundles nsis
+# target\release\bundle\nsis\OpenBoard_<version>_x64-setup.exe
+```
 
 ## Notes
 
-- Transport is plain HTTP inside the private network tunnel (WireGuard-encrypted);
-  `dangerousInsecureTransportProtocol` is set for that reason. Integrity comes from the
-  signature: a tampered installer is rejected.
-- The first install with updater support (0.1.0 → later) must still be installed by hand once.
-- Roll back: put the previous installer + its `latest.json` back — but the updater only
-  installs a *higher* version, so a rollback is a new patch release.
+- The installer installs per user (no admin prompt).
+- Settings and boards live in the app data directory and are kept across reinstalls.
+- To roll back, publish a new patch release; there is no downgrade path built in.
+- Code signing is not set up. If you add a certificate later, sign the exe in the release
+  workflow before the upload step.
