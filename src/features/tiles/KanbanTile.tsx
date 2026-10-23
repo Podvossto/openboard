@@ -5,7 +5,7 @@ import { editCard } from "./logic";
 import type { KanbanCard, KanbanColumn, Tile, TileData } from "../../lib/types";
 import { localId, moveCard } from "./logic";
 
-const MIME = "application/x-agentboard-card";
+const MIME = "application/x-openboard-card";
 
 /** Kanban: columns of cards; drag cards between/within columns (HTML5 DnD). */
 export function KanbanTile({ tile, setData }: { tile: Tile<"kanban">; setData: (d: TileData["kanban"]) => void }) {

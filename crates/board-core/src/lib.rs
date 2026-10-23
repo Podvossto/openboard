@@ -1,4 +1,4 @@
-//! Agent Board core.
+//! OpenBoard core.
 //!
 //! Everything here is UI-agnostic so it can be unit-tested headless on CI.
 //! The Tauri shell (`src-tauri`) only wires these pieces to IPC commands.

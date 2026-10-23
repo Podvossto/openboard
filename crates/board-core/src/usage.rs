@@ -97,7 +97,7 @@ fn fetch_claude_creds(path: &Path) -> Usage {
         .get("https://api.anthropic.com/api/oauth/usage")
         .header("Authorization", &format!("Bearer {tok}"))
         .header("anthropic-beta", "oauth-2025-04-20")
-        .header("User-Agent", "agent-board")
+        .header("User-Agent", "openboard")
         .call();
     match res {
         Ok(mut r) if r.status().is_success() => match r.body_mut().read_json::<serde_json::Value>()

@@ -13,6 +13,20 @@ let board: unknown = {
   workspaces: [
     {
       id: "ws-main", name: "Main", viewport: { x: 40, y: 30, zoom: 0.8 }, memory: "Use pnpm. API on :3000.",
+      tiles: [
+        {
+          id: "t1", kind: "kanban", title: "Sprint", x: 1460, y: 0, width: 680, height: 420,
+          data: {
+            columns: [
+              { id: "k1", name: "Todo", cards: [{ id: "a1", text: "Rate-limit /login" }, { id: "a2", text: "Update README" }] },
+              { id: "k2", name: "Doing", cards: [{ id: "a3", text: "Refactor auth middleware", createdBy: "api" }] },
+              { id: "k3", name: "Done", cards: [{ id: "a4", text: "CI on every push" }] },
+            ],
+          },
+        },
+        { id: "t2", kind: "note", title: "Notes", x: 1460, y: 450, width: 680, height: 230, data: { text: "Release checklist\n- bump version\n- run the full suite\n- tag and push" } },
+        { id: "t3", kind: "git", title: "api", x: 1460, y: 710, width: 680, height: 322, data: { cwd: "C:/dev/api" } },
+      ],
       groups: [{ id: "g1", name: "DOCS", color: "#7c9cff", x: 0, y: 500, width: 1432, height: 532 }],
       consoles: [
         { id: "c1", title: "api", agent: { kind: "claudeCode" }, cwd: "C:/dev/api", x: 0, y: 0, width: 680, height: 420, agentSession: "s1" },
@@ -34,7 +48,7 @@ let settings = {
   profiles: ((window as unknown as { __seedProfiles?: unknown[] }).__seedProfiles ?? []) as unknown[],
   agentPresets: ((window as unknown as { __seedPresets?: unknown[] }).__seedPresets ?? []) as unknown[],
 };
-const running = new Set<string>(["c1", "c3"]);
+const running = new Set<string>(["c1", "c2", "c3"]);
 const log: { cmd: string; args: unknown }[] = [];
 
 /** Deterministic fake usage_analytics for a `days` window (plausible weekday-heavy pattern). */
@@ -278,21 +292,7 @@ w.__TAURI_INTERNALS__ = {
       case "claude_usage":
         return { session: { percent: 34, resetsAt: new Date(Date.now() + 2 * 3600e3).toISOString() }, weekly: { percent: 71, resetsAt: null }, error: null };
       case "app_version":
-        return "0.1.0";
-      case "update_check": {
-        // window.__update: null = up to date; "fail" = unreachable; else an UpdateInfo
-        const u = (window as unknown as { __update?: unknown }).__update;
-        if (u === "fail") throw "update: error sending request for url (http://updates.example.invalid:8740/agent-board/latest.json)";
-        return u ?? null;
-      }
-      case "update_install": {
-        for (const d of [400_000, 1_200_000, 2_000_000]) {
-          await new Promise((r) => setTimeout(r, 120));
-          emit("updater://progress", { downloaded: d, total: 2_000_000 });
-        }
-        (window as unknown as { __installed?: boolean }).__installed = true;
-        return null;
-      }
+        return "0.1.4";
       case "list_skills": {
         const cli = String(args.cli);
         return extSkills.filter((x) => x.cli === cli && (x.scope === "user" || args.cwd)).map((x) => ({ ...x, cli: undefined }));
@@ -346,7 +346,12 @@ w.__TAURI_INTERNALS__ = {
         if (!running.has(id)) return false;
         channels.set(id, (args.onData as { id: number }).id);
         setTimeout(() => {
-          send(id, `\x1b[32m✓ attached ${id}\x1b[0m\r\n> `);
+          const demo: Record<string, string> = {
+            c1: "\x1b[2mThe refactor touches 3 files. Apply the change to auth/middleware.ts?\x1b[0m\r\n\x1b[33m? Allow edit (y/n)\x1b[0m ",
+            c2: "\x1b[36mcodex\x1b[0m running the test suite...\r\n  \x1b[32m✓\x1b[0m 48 passed\r\n> ",
+            c3: "\x1b[2mDrafting the API reference from the route handlers...\x1b[0m\r\n",
+          };
+          send(id, `\x1b[32m✓ attached ${id}\x1b[0m\r\n${demo[id] ?? "> "}`);
           if (id === "c1") emit("console://status", { id, status: "needsYou" });
           if (id === "c3") emit("console://status", { id, status: "working" });
         }, 60);

@@ -25,7 +25,7 @@ export function useNeedsYouAlert(id: string, title: string) {
       try {
         let ok = await isPermissionGranted();
         if (!ok) ok = (await requestPermission()) === "granted";
-        if (ok) sendNotification({ title: "Agent Board", body: `${titleRef.current} needs you` });
+        if (ok) sendNotification({ title: "OpenBoard", body: `${titleRef.current} needs you` });
       } catch {
         /* notifications unavailable */
       }

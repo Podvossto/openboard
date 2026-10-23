@@ -32,7 +32,7 @@ export function validatePreset(p: AgentPreset, taken: string[]): string | null {
   for (const m of p.mcp) {
     if (!m.name.trim() && !m.target.trim()) continue;
     if (!/^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$/.test(m.name.trim())) return `MCP name "${m.name}" — letters, digits, - or _`;
-    if (m.name.trim() === "agent-board") return "MCP name agent-board is reserved";
+    if (m.name.trim() === "openboard") return "MCP name openboard is reserved";
     if (!m.target.trim()) return `MCP "${m.name}" needs a command or URL`;
   }
   return null;

@@ -89,19 +89,19 @@ fn tile_defs(kinds: &[String]) -> Vec<Value> {
         .collect()
 }
 
-/// `--allowedTools` value for a console (MCP tools are named `mcp__agent-board__<tool>`).
+/// `--allowedTools` value for a console (MCP tools are named `mcp__openboard__<tool>`).
 pub fn allowed_tools(lead: bool, kinds: &[String]) -> String {
     let lead_names = if lead { LEAD_TOOLS } else { &[] };
     lead_names
         .iter()
         .copied()
         .chain(tile_tool_names(kinds))
-        .map(|n| format!("mcp__agent-board__{n}"))
+        .map(|n| format!("mcp__openboard__{n}"))
         .collect::<Vec<_>>()
         .join(",")
 }
 
-/// System-prompt addition telling an agent it lives on Agent Board and what it may touch.
+/// System-prompt addition telling an agent it lives on OpenBoard and what it may touch.
 /// `tiles` = (kind, title). Empty when nothing is linked.
 pub fn tiles_prompt(tiles: &[(String, String)]) -> String {
     if tiles.is_empty() {
@@ -113,9 +113,9 @@ pub fn tiles_prompt(tiles: &[(String, String)]) -> String {
         .collect::<Vec<_>>()
         .join(", ");
     format!(
-        "You are running inside Agent Board, a visual board of AI agent consoles. The user linked these board tiles to you: {list}. \
+        "You are running inside OpenBoard, a visual board of AI agent consoles. The user linked these board tiles to you: {list}. \
 When the user asks you to plan, track or schedule work (\"add a card\", \"move it to Done\", \"tick that off\", \"put it on the calendar\"), \
-use the agent-board MCP tools (list_linked_tiles first, then kanban_* / checklist_* / calendar_*) — the board updates live for the user. \
+use the openboard MCP tools (list_linked_tiles first, then kanban_* / checklist_* / calendar_*) — the board updates live for the user. \
 Keep cards short; move cards as your work progresses."
     )
 }
@@ -134,7 +134,7 @@ fn lead_defs() -> Vec<Value> {
     let Value::Array(v) = json!([
         {
             "name": "list_consoles",
-            "description": "List every console on the Agent Board: title, agent (claude/codex/shell/...), status (working, resting, needsYou, exited), group, and whether it is you. Call this first to see who can take work.",
+            "description": "List every console on the OpenBoard: title, agent (claude/codex/shell/...), status (working, resting, needsYou, exited), group, and whether it is you. Call this first to see who can take work.",
             "inputSchema": {"type": "object", "properties": {}, "additionalProperties": false}
         },
         {
@@ -250,8 +250,8 @@ pub fn handle(tools: &dyn Tools, caller: &str, req: &Value) -> Option<Value> {
         "initialize" => Ok(json!({
             "protocolVersion": req.pointer("/params/protocolVersion").and_then(|v| v.as_str()).unwrap_or(PROTOCOL_VERSION),
             "capabilities": {"tools": {"listChanged": false}},
-            "serverInfo": {"name": "agent-board", "version": env!("CARGO_PKG_VERSION")},
-            "instructions": "Agent Board tools. Leads: list_consoles, send_to_console, read_console, spawn_console. Linked tiles: list_linked_tiles, then kanban_* / checklist_* / calendar_*."
+            "serverInfo": {"name": "openboard", "version": env!("CARGO_PKG_VERSION")},
+            "instructions": "OpenBoard tools. Leads: list_consoles, send_to_console, read_console, spawn_console. Linked tiles: list_linked_tiles, then kanban_* / checklist_* / calendar_*."
         })),
         "ping" => Ok(json!({})),
         "tools/list" => Ok(json!({"tools": tool_defs(tools, caller)})),
@@ -281,7 +281,7 @@ pub fn preset_mcp_servers(extra: &[crate::settings::PresetMcp]) -> serde_json::M
     for e in extra {
         let name = e.name.trim();
         let target = e.target.trim();
-        if name.is_empty() || target.is_empty() || name == "agent-board" {
+        if name.is_empty() || target.is_empty() || name == "openboard" {
             continue;
         }
         let v = if target.starts_with("http://") || target.starts_with("https://") {
@@ -339,15 +339,15 @@ pub fn join_prompts(parts: &[&str]) -> String {
 
 /// `--mcp-config` JSON for a lead console.
 pub fn claude_mcp_config(hook_url: &str, token: &str, console_id: &str) -> Value {
-    json!({"mcpServers": {"agent-board": {
+    json!({"mcpServers": {"openboard": {
         "type": "http",
         "url": format!("{hook_url}/mcp/{console_id}"),
-        "headers": {"x-agent-board-token": token}
+        "headers": {"x-openboard-token": token}
     }}})
 }
 
-pub const LEAD_PROMPT: &str = "You are the orchestrator (lead) of a team of AI coding agents on Agent Board. \
-Break the user's goal into self-contained tasks and delegate them with the agent-board MCP tools: \
+pub const LEAD_PROMPT: &str = "You are the orchestrator (lead) of a team of AI coding agents on OpenBoard. \
+Break the user's goal into self-contained tasks and delegate them with the openboard MCP tools: \
 list_consoles to see the team (consoles with yourTeam=true are yours; prefer them), send_to_console to assign work (one clear task per message, include file paths and acceptance criteria), \
 read_console to check progress and results, spawn_console if you need more workers. \
 Do not assign work to consoles that are 'working' or 'needsYou'. Summarise results for the user when the team is done.";
@@ -491,11 +491,11 @@ mod tests {
     fn config_and_targets() {
         let c = claude_mcp_config("http://127.0.0.1:5", "tok", "c1");
         assert_eq!(
-            c["mcpServers"]["agent-board"]["url"],
+            c["mcpServers"]["openboard"]["url"],
             "http://127.0.0.1:5/mcp/c1"
         );
         assert_eq!(
-            c["mcpServers"]["agent-board"]["headers"]["x-agent-board-token"],
+            c["mcpServers"]["openboard"]["headers"]["x-openboard-token"],
             "tok"
         );
         let roster = vec![
@@ -566,7 +566,7 @@ mod tests {
                 target: "npx -y @mcp/fs \"C:/my dir\"".into(),
             },
             PresetMcp {
-                name: "agent-board".into(),
+                name: "openboard".into(),
                 target: "x".into(),
             },
             PresetMcp {
@@ -647,11 +647,11 @@ mod tests {
     fn allowed_tools_and_prompt() {
         assert_eq!(allowed_tools(false, &[]), "");
         let a = allowed_tools(true, &["checklist".into()]);
-        assert!(a.starts_with("mcp__agent-board__list_consoles,"));
-        assert!(a.contains("mcp__agent-board__checklist_toggle") && !a.contains("kanban"));
+        assert!(a.starts_with("mcp__openboard__list_consoles,"));
+        assert!(a.contains("mcp__openboard__checklist_toggle") && !a.contains("kanban"));
         assert!(tiles_prompt(&[]).is_empty());
         let p = tiles_prompt(&[("kanban".into(), "Sprint".into())]);
-        assert!(p.contains("Agent Board") && p.contains("kanban \"Sprint\""));
+        assert!(p.contains("OpenBoard") && p.contains("kanban \"Sprint\""));
         // every static schema parses and lists its required args
         for t in TILE_TOOLS {
             let v: Value = serde_json::from_str(t.3).unwrap();

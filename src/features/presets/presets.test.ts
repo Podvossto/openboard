@@ -16,7 +16,7 @@ describe("presets", () => {
     expect(validatePreset(po(), ["po"])).toMatch(/already exists/);
     expect(validatePreset({ ...po(), mcp: [{ name: "bad name", target: "x" }] }, [])).toMatch(/MCP name/);
     expect(validatePreset({ ...po(), mcp: [{ name: "x", target: "" }] }, [])).toMatch(/needs a command/);
-    expect(validatePreset({ ...po(), mcp: [{ name: "agent-board", target: "x" }] }, [])).toMatch(/reserved/);
+    expect(validatePreset({ ...po(), mcp: [{ name: "openboard", target: "x" }] }, [])).toMatch(/reserved/);
     expect(validatePreset({ ...po(), mcp: [{ name: "", target: "" }] }, [])).toBeNull();
     expect(validatePreset({ ...po(), icon: "data:image/png;base64," + "A".repeat(100_000) }, [])).toMatch(/64 KB/);
     expect(validatePreset(po(), [])).toBeNull();

@@ -180,7 +180,7 @@ pub struct ConsoleNode {
     /// Profile id (account / provider). None → the CLI's default login.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
-    /// Orchestrator lead (Claude only): started with the agent-board MCP tools.
+    /// Orchestrator lead (Claude only): started with the openboard MCP tools.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub lead: bool,
     /// Per-console model override (`--model`). None → the CLI's default model.

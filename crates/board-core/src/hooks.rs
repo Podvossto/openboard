@@ -1,9 +1,9 @@
 //! Hook bridge between agent CLIs and the app.
 //!
 //! - The app runs a loopback HTTP server ([`HookServer`]) protected by a random token.
-//! - Each console's PTY gets env vars (`AGENT_BOARD_*`) pointing at it.
+//! - Each console's PTY gets env vars (`OPENBOARD_*`) pointing at it.
 //! - Claude Code is launched with `--settings <file>` whose hooks run
-//!   `"<agent-board.exe>" hook`, which forwards the hook JSON from stdin ([`run_client`]).
+//!   `"<openboard.exe>" hook`, which forwards the hook JSON from stdin ([`run_client`]).
 //!   The user's own Claude config is never modified.
 
 use std::io::Read;
@@ -20,10 +20,10 @@ use serde_json::{json, Value};
 use crate::status::HookEvent;
 use crate::{Error, Result};
 
-pub const ENV_URL: &str = "AGENT_BOARD_HOOK_URL";
-pub const ENV_TOKEN: &str = "AGENT_BOARD_TOKEN";
-pub const ENV_CONSOLE: &str = "AGENT_BOARD_CONSOLE_ID";
-const TOKEN_HEADER: &str = "x-agent-board-token";
+pub const ENV_URL: &str = "OPENBOARD_HOOK_URL";
+pub const ENV_TOKEN: &str = "OPENBOARD_TOKEN";
+pub const ENV_CONSOLE: &str = "OPENBOARD_CONSOLE_ID";
+const TOKEN_HEADER: &str = "x-openboard-token";
 
 /// `(console_id, event, agent_session_id)` — session id lets the UI track `/clear` & resume ids.
 pub type HookHandler = Arc<dyn Fn(String, HookEvent, Option<String>) + Send + Sync>;
@@ -200,7 +200,7 @@ pub fn hook_command(exe: &std::path::Path) -> String {
     format!("\"{}\" hook", exe.display().to_string().replace('\\', "/"))
 }
 
-/// Entry point for `agent-board hook`: forward stdin JSON to the running app.
+/// Entry point for `openboard hook`: forward stdin JSON to the running app.
 /// Never fails loudly — a broken hook must not disturb the agent.
 pub fn run_client() -> Result<()> {
     let (Ok(url), Ok(token), Ok(console)) = (
@@ -208,7 +208,7 @@ pub fn run_client() -> Result<()> {
         std::env::var(ENV_TOKEN),
         std::env::var(ENV_CONSOLE),
     ) else {
-        return Ok(()); // launched outside Agent Board — nothing to do
+        return Ok(()); // launched outside OpenBoard — nothing to do
     };
     let mut body = String::new();
     std::io::stdin().read_to_string(&mut body)?;
@@ -399,10 +399,10 @@ mod tests {
 
     #[test]
     fn hook_command_normalizes_windows_paths() {
-        let p = std::path::Path::new(r"C:\Program Files\Agent Board\agent-board.exe");
+        let p = std::path::Path::new(r"C:\Program Files\OpenBoard\openboard.exe");
         assert_eq!(
             hook_command(p),
-            r#""C:/Program Files/Agent Board/agent-board.exe" hook"#
+            r#""C:/Program Files/OpenBoard/openboard.exe" hook"#
         );
     }
 }

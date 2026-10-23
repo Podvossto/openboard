@@ -262,7 +262,7 @@ pub fn needs_key(profile: &Profile) -> bool {
 
 // ---------- key storage (OS credential store) ----------
 
-const SERVICE: &str = "agent-board";
+const SERVICE: &str = "openboard";
 
 pub trait KeyStore: Send + Sync {
     fn get(&self, profile_id: &str) -> Option<String>;

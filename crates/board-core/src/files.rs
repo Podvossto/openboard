@@ -200,7 +200,7 @@ pub fn write_file(root: &Path, rel: &str, text: &str) -> Result<()> {
     }
     let dir = p.parent().ok_or_else(|| denied("invalid path"))?;
     let tmp = dir.join(format!(
-        ".{}.agent-board.tmp",
+        ".{}.openboard.tmp",
         p.file_name().unwrap_or_default().to_string_lossy()
     ));
     let res = (|| -> std::io::Result<()> {
