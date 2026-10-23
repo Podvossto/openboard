@@ -3,7 +3,6 @@ mod commands;
 mod events;
 mod orchestrator;
 mod state;
-mod updater;
 
 use std::sync::Arc;
 
@@ -21,7 +20,7 @@ pub fn run() {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,agent_board=debug,board_core=debug".into()),
+                .unwrap_or_else(|_| "info,openboard=debug,board_core=debug".into()),
         )
         .init();
 
@@ -33,8 +32,6 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .manage(updater::PendingUpdate::default())
         .setup(|app| {
             let handle = app.handle().clone();
             let data_dir = app.path().app_data_dir()?;
@@ -128,12 +125,10 @@ pub fn run() {
             commands::usage_for_sessions,
             commands::sync_roster,
             commands::tile_op_result,
-            updater::app_version,
-            updater::update_check,
-            updater::update_install,
+            commands::app_version,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building Agent Board")
+        .expect("error while building OpenBoard")
         .run(|app, ev| {
             if let tauri::RunEvent::Exit = ev {
                 app.state::<AppState>().pty.kill_all();

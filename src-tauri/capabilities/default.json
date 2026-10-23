@@ -10,7 +10,6 @@
     "dialog:allow-open",
     "dialog:allow-ask",
     "notification:default",
-    "core:window:allow-request-user-attention",
-    "updater:default"
+    "core:window:allow-request-user-attention"
   ]
 }

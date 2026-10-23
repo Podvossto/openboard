@@ -9,7 +9,6 @@ import type {
   McpServer,
   Skill,
   AccountUsage,
-  UpdateInfo,
   SessionUsage,
   AgentKind,
   Analytics,
@@ -91,10 +90,6 @@ export const ipc = {
   setProfileKey: (id: string, key: string) => invoke<void>("set_profile_key", { id, key }),
   deleteProfileKey: (id: string) => invoke<void>("delete_profile_key", { id }),
   appVersion: () => invoke<string>("app_version"),
-  /** null = up to date */
-  updateCheck: () => invoke<UpdateInfo | null>("update_check"),
-  /** downloads, verifies the signature, installs and restarts */
-  updateInstall: () => invoke<void>("update_install"),
   /** answer an agent's tile tool call (see features/links/useTileOps) */
   tileOpResult: (opId: string, text: string | null, error: string | null) => invoke<void>("tile_op_result", { opId, text, error }),
   syncRoster: (roster: { id: string; title: string; agent: string; group?: string; lead?: boolean; team?: string[]; links?: { id: string; kind: string; title: string }[] }[]) =>
@@ -138,8 +133,6 @@ export const events = {
     listen<{ from: string; agent: string; title: string; task: string }>("orchestrator://spawn", (e) => cb(e.payload)),
   onOrchestratorSent: (cb: (p: { from: string; to: string }) => void): Promise<UnlistenFn> =>
     listen<{ from: string; to: string }>("orchestrator://sent", (e) => cb(e.payload)),
-  onUpdateProgress: (cb: (p: { downloaded: number; total: number | null }) => void): Promise<UnlistenFn> =>
-    listen<{ downloaded: number; total: number | null }>("updater://progress", (e) => cb(e.payload)),
   onTileOp: (cb: (p: { opId: string; from: string; tile: string; tool: string; args: Record<string, unknown> }) => void): Promise<UnlistenFn> =>
     listen<{ opId: string; from: string; tile: string; tool: string; args: Record<string, unknown> }>("tile://op", (e) => cb(e.payload)),
   /** every Claude hook call (diagnostics + session-id tracking) */

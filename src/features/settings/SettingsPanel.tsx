@@ -8,7 +8,6 @@ import { activeWorkspace, CONSOLE_H, CONSOLE_W, nextPosition, useBoard } from ".
 import { clampFont } from "./args";
 import { AgentIcon, CatalogIcon } from "../../components/AgentIcon";
 import { ProfilesSection } from "./ProfilesSection";
-import { UpdateSettings } from "../updater/UpdatePrompt";
 import { AgentPicker } from "../../components/AgentPicker";
 import "./settings.css";
 
@@ -111,6 +110,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const [detected, setDetected] = useState<Detected | null>(null);
   const [detecting, setDetecting] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [version, setVersion] = useState<string | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [fontText, setFontText] = useState(() => String(useBoard.getState().settings.fontSize));
 
@@ -171,6 +171,10 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
       .then(setDetected)
       .catch(() => setDetected(null))
       .finally(() => setDetecting(false));
+  }, []);
+
+  useEffect(() => {
+    ipc.appVersion().then(setVersion).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -279,8 +283,10 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             <section className="set-section">
               <h3>General Preferences</h3>
               <div className="field">
-                <label>Updates</label>
-                <UpdateSettings />
+                <label>Version</label>
+                <div className="text-[13px] text-ink">
+                  <span className="font-mono" data-testid="app-version">{version ?? "—"}</span>
+                </div>
               </div>
               <div className="field">
                 <label htmlFor="set-cwd">Default working directory</label>

@@ -28,7 +28,7 @@ export interface ConsoleNode {
   loop?: LoopConfig;
   /** account / provider profile id; undefined = the CLI's default login */
   profile?: string;
-  /** orchestrator lead: gets agent-board MCP tools to drive other consoles (Claude only) */
+  /** orchestrator lead: gets openboard MCP tools to drive other consoles (Claude only) */
   lead?: boolean;
   /** model override passed as --model (Claude / Codex); undefined = CLI default */
   model?: string;
@@ -452,14 +452,6 @@ export type RoutePlan =
 export interface GoalVerdict {
   done: boolean;
   reason: string;
-}
-
-/** In-app updater (src-tauri/src/updater.rs). */
-export interface UpdateInfo {
-  version: string;
-  currentVersion: string;
-  notes: string | null;
-  date: string | null;
 }
 
 // ---------- Skills & MCP (board-core::extensions) ----------

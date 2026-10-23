@@ -23,8 +23,6 @@ import { useBoard } from "../store/board";
 import { useNeedsSince } from "../features/shell/useNeedsSince";
 import { NeedsYouInbox } from "../features/shell/NeedsYouInbox";
 import { useTileOps } from "../features/links/useTileOps";
-import { UpdatePrompt } from "../features/updater/UpdatePrompt";
-import { useUpdaterBoot } from "../features/updater/store";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { AddConsoleModal } from "../features/console/AddConsoleModal";
 
@@ -68,11 +66,10 @@ export function App() {
   useLoops();
   useTileOps();
   useNeedsSince();
-  useUpdaterBoot();
   useSessionUsagePoller();
   useOrchestrator();
 
-  if (!loaded) return <div className="splash">Agent Board</div>;
+  if (!loaded) return <div className="splash">OpenBoard</div>;
   return (
     <MotionConfig reducedMotion="user">
     <ReactFlowProvider>
@@ -111,7 +108,6 @@ export function App() {
           />
         )}
         <NeedsYouInbox />
-        <UpdatePrompt />
         <ConfirmDialog />
       </div>
     </ReactFlowProvider>

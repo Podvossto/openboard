@@ -15,7 +15,7 @@ use board_core::usage::{self, Usage};
 use board_core::{Error, Result};
 use serde::{Deserialize, Serialize};
 use tauri::ipc::{Channel, InvokeResponseBody};
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::state::AppState;
 
@@ -27,6 +27,11 @@ pub struct LoadedBoard {
     board: Board,
     /// Non-null when the main file was corrupt and a backup was used.
     recovered_from_backup: Option<usize>,
+}
+
+#[tauri::command]
+pub fn app_version(app: AppHandle) -> String {
+    app.package_info().version.to_string()
 }
 
 #[tauri::command]
@@ -100,7 +105,7 @@ pub struct SpawnArgs {
     /// Profile id (account / provider) — None = the CLI's default login.
     #[serde(default)]
     profile: Option<String>,
-    /// Orchestrator lead: gets the agent-board MCP tools + lead instructions (Claude only).
+    /// Orchestrator lead: gets the openboard MCP tools + lead instructions (Claude only).
     #[serde(default)]
     lead: bool,
     /// Per-console model override (`--model`), e.g. "opus" / "sonnet" for Claude.

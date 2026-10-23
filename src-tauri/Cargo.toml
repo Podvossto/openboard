@@ -1,13 +1,13 @@
 [package]
-name = "agent-board"
-description = "Agent Board desktop app"
+name = "openboard"
+description = "OpenBoard desktop app"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
 [lib]
-name = "agent_board_lib"
+name = "openboard_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -19,8 +19,6 @@ tauri = { version = "2", features = ["unstable"] }  # unstable = multiwebview (w
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-single-instance = "2"
-# native-tls (SChannel on Windows): no `ring`, so the Linux cross-compile needs no C toolchain
-tauri-plugin-updater = { version = "2", default-features = false, features = ["native-tls", "system-proxy", "zip"] }
 serde.workspace = true
 serde_json.workspace = true
 uuid.workspace = true

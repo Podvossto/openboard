@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Agent Board",
+  "productName": "OpenBoard",
   "version": "0.1.4",
-  "identifier": "site.podvosto.agentboard",
+  "identifier": "io.github.podvossto.openboard",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Agent Board",
+        "title": "OpenBoard",
         "width": 1440,
         "height": 900,
         "minWidth": 900,
@@ -44,19 +44,6 @@
       "nsis": {
         "installMode": "currentUser"
       }
-    },
-    "createUpdaterArtifacts": true
-  },
-  "plugins": {
-    "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIwN0QwMzYzRkI1MUJEREMKUldUY3ZWSDdZd045SUNaNjlQMnFjcldyaWIrSFQrK0NDc0tKVWVwREZtSE1iZHJVdUxYTGR3eWQK",
-      "endpoints": [
-        "http://updates.example.invalid:8740/agent-board/latest.json"
-      ],
-      "windows": {
-        "installMode": "passive"
-      },
-      "dangerousInsecureTransportProtocol": true
     }
   }
 }
