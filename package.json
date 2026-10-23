@@ -1,6 +1,9 @@
 {
-  "name": "agent-board",
+  "name": "openboard",
   "private": true,
+  "description": "A pan/zoom board where every node is a real CLI coding agent running in a real terminal",
+  "license": "MIT",
+  "repository": "github:Podvossto/openboard",
   "version": "0.1.4",
   "type": "module",
   "scripts": {
